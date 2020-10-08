@@ -145,7 +145,7 @@ implicit none
 
 integer, intent(in) :: n, ne, conn(4, ne)
 real(kind=dtype), intent(in) :: X(2, n)
-real(kind=dtype), intent(in) :: rho(4, ne)
+real(kind=dtype), intent(in) :: rho(n)
 real(kind=dtype), intent(out) :: mass
 
 ! Temporary data used internally
@@ -177,9 +177,11 @@ do index = 1, ne
       ! Compute J = Xd^{-1}
       det = Xd(1,1)*Xd(2,2) - Xd(1,2)*Xd(2,1)
 
-      ! Evaluate the density field at the quadrature point
-      rval = rho(1, index)*ns(1) + rho(2, index)*ns(2) + &
-             rho(3, index)*ns(3) + rho(4, index)*ns(4)
+      ! Compute the interpolated design value
+      rval = rho(conn(1, index) + 1)*ns(1) + &
+             rho(conn(2, index) + 1)*ns(2) + &
+             rho(conn(3, index) + 1)*ns(3) + &
+             rho(conn(4, index) + 1)*ns(4)
 
       ! Add the contribution to the mass
       mass = mass + rval*det*quadwts(i)*quadwts(j)
@@ -188,6 +190,73 @@ do index = 1, ne
 end do
 
 end subroutine computeMass
+
+subroutine computeMassDeriv(n, ne, conn, X, dmdx)
+  ! Compute the mass of the structure given the material densities
+  !
+  ! Input:
+  ! n:        the number of nodes
+  ! ne:       the number of elements
+  ! conn:     the connectivity of the underlying mesh
+  ! X:        the nodal locations in the mesh
+  ! rho:      the density values within each element
+  !
+  ! Output:
+  ! mass:     the mass
+
+  use precision
+  implicit none
+
+  integer, intent(in) :: n, ne, conn(4, ne)
+  real(kind=dtype), intent(in) :: X(2, n)
+  real(kind=dtype), intent(inout) :: dmdx(n)
+
+  ! Temporary data used internally
+  integer :: index, i, j
+  real(kind=dtype) :: Xd(2, 2), ns(4), nxi(4), neta(4)
+  real(kind=dtype) :: quadpts(2), quadwts(2)
+  real(kind=dtype) :: det, h, edmdx(4)
+
+  ! Set the Gauss quadrature point/weight values
+  quadpts(1) = -0.577350269189626_dtype
+  quadpts(2) = 0.577350269189626_dtype
+  quadwts(1) = 1.0_dtype
+  quadwts(2) = 1.0_dtype
+
+  dmdx(:) = 0.0_dtype
+
+  ! Loop over all elements within the mesh
+  do index = 1, ne
+    ! Zero the element-wise derivative
+    edmdx(:) = 0.0_dtype
+
+    ! Loop over the quadrature points within the finite element
+    do j = 1,2
+      do i = 1,2
+        ! Evaluate the shape functions
+        call evalShapeFunctions(quadpts(i), quadpts(j), ns, nxi, neta)
+
+        ! Evaluate the Jacobian of the residuals
+        call getElemGradient(index, n, ne, conn, X, nxi, neta, Xd)
+
+        ! Compute J = Xd^{-1}
+        det = Xd(1,1)*Xd(2,2) - Xd(1,2)*Xd(2,1)
+
+        h = det*quadwts(i)*quadwts(j)
+
+        edmdx(1) = edmdx(1) + h*ns(1)
+        edmdx(2) = edmdx(2) + h*ns(2)
+        edmdx(3) = edmdx(3) + h*ns(3)
+        edmdx(4) = edmdx(4) + h*ns(4)
+      end do
+    end do
+
+    do i = 1, 4
+      dmdx(conn(i, index) + 1) = dmdx(conn(i, index) + 1) + edmdx(i)
+    end do
+  end do
+
+end subroutine computeMassDeriv
 
 subroutine computePenalty(rho, qval, penalty)
   ! Given the density, compute the corresponding penalty
@@ -458,8 +527,6 @@ subroutine computeElemKmat(index, n, ne, conn, X, qval, C, rho, Ke)
                rho(conn(3, index) + 1)*ns(3) + &
                rho(conn(4, index) + 1)*ns(4)
 
-        rval = 1.0_dtype
-
         ! Compute the penalization factor for the stiffness
         call computePenalty(rval, qval, penalty)
 
@@ -556,6 +623,114 @@ end do
 
 end subroutine computeKmat
 
+subroutine computeKmatDeriv(n, ne, nvars, conn, vars, X, qval, C, rho, psi, phi, dfdx)
+  ! Compute the derivative of the inner product of two vectors with the stiffness
+  ! matrix
+  !
+  ! Input:
+  ! n:        the number of nodes
+  ! ne:       the number of elements
+  ! conn:     the element connectivity
+  ! X:        the nodal locations
+  ! qval:     the penalty parameter
+  ! C:        the constitutive matrix
+  ! rho:      the filtered design density values
+
+  use precision
+  implicit none
+
+  ! The input data
+  integer, intent(in) :: n, ne, nvars, conn(4, ne), vars(2, n)
+  real(kind=dtype), intent(in) :: X(2, n)
+  real(kind=dtype), intent(in) :: qval, C(3,3), rho(n), psi(nvars), phi(nvars)
+  real(kind=dtype), intent(inout) :: dfdx(n)
+
+  ! Temporary data used in the element calculation
+  integer :: index, i, j, ii, ivar
+  real(kind=dtype) :: epsi(8), ephi(8), edfdx(4)
+  real(kind=dtype) :: B(3,8), bphi(3), bpsi(3), s(3)
+  real(kind=dtype) :: Xd(2,2), Jd(2,2), ns(4), nxi(4), neta(4)
+  real(kind=dtype) :: quadpts(2), quadwts(2)
+  real(kind=dtype) :: det, invdet, h, rval, penalty, dpenalty
+
+  ! Set the Gauss quadrature point/weight values
+  quadpts(1) = -0.577350269189626_dtype
+  quadpts(2) = 0.577350269189626_dtype
+  quadwts(1) = 1.0_dtype
+  quadwts(2) = 1.0_dtype
+
+  dfdx(:) = 0.0_dtype
+
+  do index = 1, ne
+    ! Extract the local variables for each element
+    epsi(:) = 0.0_dtype
+    ephi(:) = 0.0_dtype
+
+    do ii = 1, 2
+      do i = 1, 4
+        ivar = vars(ii, conn(i, index) + 1)
+        if (ivar >= 0) then
+          epsi(2*(i-1) + ii) = psi(ivar+1)
+          ephi(2*(i-1) + ii) = phi(ivar+1)
+        end if
+      end do
+    end do
+
+    edfdx(:) = 0.0_dtype
+
+    do j = 1,2
+      do i = 1,2
+        ! Evaluate the shape functions
+        call evalShapeFunctions(quadpts(i), quadpts(j), ns, nxi, neta)
+
+        ! Evaluate the Jacobian of the residuals
+        call getElemGradient(index, n, ne, conn, X, nxi, neta, Xd)
+
+        ! Compute J = Xd^{-1}
+        det = Xd(1,1)*Xd(2,2) - Xd(1,2)*Xd(2,1)
+        invdet = 1.0_dtype/det
+        Jd(1,1) =  invdet*Xd(2,2)
+        Jd(2,1) = -invdet*Xd(2,1)
+        Jd(1,2) = -invdet*Xd(1,2)
+        Jd(2,2) =  invdet*Xd(1,1)
+
+        ! Compute the interpolated design value
+        rval = rho(conn(1, index) + 1)*ns(1) + &
+               rho(conn(2, index) + 1)*ns(2) + &
+               rho(conn(3, index) + 1)*ns(3) + &
+               rho(conn(4, index) + 1)*ns(4)
+
+        ! Compute the penalization factor for the stiffness
+        call computePenaltyDeriv(rval, qval, penalty, dpenalty)
+
+        ! Compute the quadrature weight at this point
+        h = quadwts(i)*quadwts(j)*det*dpenalty
+
+        ! Evaluate the derivative of the strain matrix
+        call evalBmat(Jd, nxi, neta, B)
+
+        bphi = matmul(B, ephi)
+        bpsi = matmul(B, epsi)
+
+        s(1) = C(1,1)*bphi(1) + C(1,2)*bphi(2) + C(1,3)*bphi(3)
+        s(2) = C(2,1)*bphi(1) + C(2,2)*bphi(2) + C(2,3)*bphi(3)
+        s(3) = C(3,1)*bphi(1) + C(3,2)*bphi(2) + C(3,3)*bphi(3)
+
+        h = h*(s(1)*bpsi(1) + s(2)*bpsi(2) + s(3)*bpsi(3))
+
+        edfdx(1) = edfdx(1) + h*ns(1)
+        edfdx(2) = edfdx(2) + h*ns(2)
+        edfdx(3) = edfdx(3) + h*ns(3)
+        edfdx(4) = edfdx(4) + h*ns(4)
+      end do
+    end do
+
+    do i = 1, 4
+      dfdx(conn(i, index)+1) = dfdx(conn(i, index)+1) + edfdx(i)
+    end do
+  end do
+
+end subroutine computeKmatDeriv
 
 ! subroutine computeAllStress( &
 !   ftype, xi, eta, n, ne, ntw, nmat, &
