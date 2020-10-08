@@ -26,7 +26,7 @@ subroutine computeNzPattern(n, ne, nvars, conn, vars, rowp, ncols, cols, info)
   integer, intent(out) :: info
 
   ! Store an array of the non-zero entries
-  integer :: i, j, jj, k, kk, var
+  integer :: i, j, jj, k, kk, var, count, temp
   integer :: rp, rstart, rend, index, nzeros(nvars)
 
   ! All entries in the row pointer
@@ -48,9 +48,11 @@ subroutine computeNzPattern(n, ne, nvars, conn, vars, rowp, ncols, cols, info)
   end do
 
   ! Count it up so that we'll have enough room
-  rowp(1) = 0
-  do i = 1, nvars
-     rowp(i+1) = rowp(i) + rowp(i+1)
+  count = 0
+  do i = 1, nvars+1
+    temp = rowp(i)
+    rowp(i) = count
+    count = count + temp
   end do
 
   ! Return that we have failed, and we need a larger array
@@ -303,16 +305,16 @@ subroutine getElemGradient(index, n, ne, conn, X, nxi, neta, Xd)
 
   do k = 1, 2
      Xd(k,1) = ( &
-          nxi(1)*X(k, conn(1, index)) + &
-          nxi(2)*X(k, conn(2, index)) + &
-          nxi(3)*X(k, conn(3, index)) + &
-          nxi(4)*X(k, conn(4, index)))
+          nxi(1)*X(k, conn(1, index) + 1) + &
+          nxi(2)*X(k, conn(2, index) + 1) + &
+          nxi(3)*X(k, conn(3, index) + 1) + &
+          nxi(4)*X(k, conn(4, index) + 1))
 
      Xd(k,2) = ( &
-          neta(1)*X(k, conn(1, index)) + &
-          neta(2)*X(k, conn(2, index)) + &
-          neta(3)*X(k, conn(3, index)) + &
-          neta(4)*X(k, conn(4, index)))
+          neta(1)*X(k, conn(1, index) + 1) + &
+          neta(2)*X(k, conn(2, index) + 1) + &
+          neta(3)*X(k, conn(3, index) + 1) + &
+          neta(4)*X(k, conn(4, index) + 1))
   end do
 
 end subroutine getElemGradient
@@ -406,7 +408,7 @@ subroutine computeElemKmat(index, n, ne, conn, X, qval, C, rho, Ke)
   ! X:      the x/y node locations
   ! qval:   the RAMP penalty parameter
   ! C:      the constitutive relationship
-  ! rho:    the filtered design variable values
+  ! rho:    the filtered design variable values at the nodes
   !
   ! Output:
   ! Ke:     the element stiffness matrix
@@ -415,7 +417,7 @@ subroutine computeElemKmat(index, n, ne, conn, X, qval, C, rho, Ke)
   implicit none
 
   integer, intent(in) :: index, n, ne, conn(4, ne)
-  real(kind=dtype), intent(in) :: qval, X(2,n), C(3,3), rho(4, ne)
+  real(kind=dtype), intent(in) :: qval, X(2,n), C(3,3), rho(n)
   real(kind=dtype), intent(inout) :: Ke(8,8)
 
   ! Temporary data used in the element calculation
@@ -451,8 +453,12 @@ subroutine computeElemKmat(index, n, ne, conn, X, qval, C, rho, Ke)
         Jd(2,2) =  invdet*Xd(1,1)
 
         ! Compute the interpolated design value
-        rval = rho(1, index)*ns(1) + rho(2, index)*ns(2) + &
-               rho(3, index)*ns(3) + rho(4, index)*ns(4)
+        rval = rho(conn(1, index) + 1)*ns(1) + &
+               rho(conn(2, index) + 1)*ns(2) + &
+               rho(conn(3, index) + 1)*ns(3) + &
+               rho(conn(4, index) + 1)*ns(4)
+
+        rval = 1.0_dtype
 
         ! Compute the penalization factor for the stiffness
         call computePenalty(rval, qval, penalty)
@@ -478,7 +484,7 @@ subroutine computeElemKmat(index, n, ne, conn, X, qval, C, rho, Ke)
 
 end subroutine computeElemKmat
 
-subroutine computeKmat(n, ne, conn, X, qval, C, rho, ncols, rowp, cols, K)
+subroutine computeKmat(n, ne, nvars, conn, vars, X, qval, C, rho, ncols, rowp, cols, K)
 ! Compute the global stiffness matrix and store it in the given
 ! compressed sparse row data format.
 !
@@ -501,14 +507,14 @@ use precision
 implicit none
 
 ! The input data
-integer, intent(in) :: n, ne, conn(4, ne)
+integer, intent(in) :: n, ne, nvars, conn(4, ne), vars(2, n)
 real(kind=dtype), intent(in) :: X(2, n)
-real(kind=dtype), intent(in) :: qval, C(3,3), rho(4, ne)
-integer, intent(in) :: ncols, rowp(n+1), cols(ncols)
-real(kind=dtype), intent(inout) :: K(2,2,ncols)
+real(kind=dtype), intent(in) :: qval, C(3,3), rho(n)
+integer, intent(in) :: ncols, rowp(nvars+1), cols(ncols)
+real(kind=dtype), intent(inout) :: K(ncols)
 
 ! Temporary data used in the element computation
-integer :: i, ii, jj, jp
+integer :: index, i, ii, j, jj, jp, ivar, jvar
 real(kind=dtype) :: Ke(8,8)
 
 ! Constants used in this function
@@ -516,24 +522,35 @@ real(kind=dtype), parameter :: zero = 0.0_dtype
 real(kind=dtype), parameter :: one = 1.0_dtype
 
 ! Zero all entries in the matrix
-K(:,:,:) = zero
+K(:) = zero
 
-do i = 1, ne
+do index = 1, ne
   ! Evaluate the element stiffness matrix
-  call computeElemKmat(i, n, ne, conn, X, qval, C, rho, Ke)
+  call computeElemKmat(index, n, ne, conn, X, qval, C, rho, Ke)
 
   ! Add the values into the stiffness matrix
-  do ii = 1, 4
-     ! Find the columns within the matrix
-     do jj = 1, 4
-        ! Just do an exhaustive search to find the rows
-        do jp = rowp(conn(ii,i)), rowp(conn(ii,i)+1)-1
-           if (cols(jp) == conn(jj,i)) then
-              K(:,:,jp) = K(:,:,jp) + Ke(2*ii-1:2*ii, 2*jj-1:2*jj)
-              exit
-           end if
+  do ii = 1, 2
+    do i = 1, 4
+      ! ivar is the zero-based index of the variable
+      ivar = vars(ii, conn(i, index) + 1)
+      if (ivar >= 0) then
+        do jj = 1, 2
+          do j = 1, 4
+            ! jvar is the zero-based index of the variable
+            jvar = vars(jj, conn(j, index) + 1)
+            if (jvar >= 0) then
+              ! Here rowp and cols are zero-based arrays for the
+              ! compressed sparse row data
+              do jp = rowp(ivar+1)+1, rowp(ivar+2)
+                if (cols(jp) == jvar) then
+                  K(jp) = K(jp) + Ke(2*(i-1) + ii, 2*(j-1) + jj)
+                end if
+              end do
+            end if
+          end do
         end do
-     end do
+      end if
+    end do
   end do
 end do
 
