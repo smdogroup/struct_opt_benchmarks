@@ -174,7 +174,7 @@ do index = 1, ne
       ! Evaluate the Jacobian of the residuals
       call getElemGradient(index, n, ne, conn, X, nxi, neta, Xd)
 
-      ! Compute J = Xd^{-1}
+      ! Compute determinant of Xd
       det = Xd(1,1)*Xd(2,2) - Xd(1,2)*Xd(2,1)
 
       ! Compute the interpolated design value
@@ -239,7 +239,7 @@ subroutine computeMassDeriv(n, ne, conn, X, dmdx)
         ! Evaluate the Jacobian of the residuals
         call getElemGradient(index, n, ne, conn, X, nxi, neta, Xd)
 
-        ! Compute J = Xd^{-1}
+        ! Compute determinant of Xd
         det = Xd(1,1)*Xd(2,2) - Xd(1,2)*Xd(2,1)
 
         h = det*quadwts(i)*quadwts(j)
@@ -429,7 +429,7 @@ subroutine evalBmat(Jd, nxi, neta, B)
   ! the displacements.
   !
   ! Input:
-  ! J:    the inverse of the
+  ! J:    the inverse of the corrdinate derivatives matrix Xd
   ! nxi:  the derivative of the shape functions w.r.t. xi
   ! neta: the derivative of the shape functions w.r.t. eta
   !
@@ -513,8 +513,10 @@ subroutine computeElemKmat(index, n, ne, conn, X, qval, C, rho, Ke)
         ! Evaluate the Jacobian of the residuals
         call getElemGradient(index, n, ne, conn, X, nxi, neta, Xd)
 
-        ! Compute J = Xd^{-1}
+        ! Compute determinant of Xd
         det = Xd(1,1)*Xd(2,2) - Xd(1,2)*Xd(2,1)
+
+        ! Compute J = Xd^{-1}
         invdet = 1.0_dtype/det
         Jd(1,1) =  invdet*Xd(2,2)
         Jd(2,1) = -invdet*Xd(2,1)
@@ -530,7 +532,7 @@ subroutine computeElemKmat(index, n, ne, conn, X, qval, C, rho, Ke)
         ! Compute the penalization factor for the stiffness
         call computePenalty(rval, qval, penalty)
 
-        ! Compute the quadrature weight at this point
+        ! Compute the coefficient of quadrature approximation
         h = quadwts(i)*quadwts(j)*penalty*det
 
         ! Evaluate the derivative of the strain matrix
@@ -686,15 +688,17 @@ subroutine computeKmatDeriv(n, ne, nvars, conn, vars, X, qval, C, rho, psi, phi,
         ! Evaluate the Jacobian of the residuals
         call getElemGradient(index, n, ne, conn, X, nxi, neta, Xd)
 
-        ! Compute J = Xd^{-1}
+        ! Compute determinant of Xd
         det = Xd(1,1)*Xd(2,2) - Xd(1,2)*Xd(2,1)
+
+        ! Compute J = Xd^{-1}
         invdet = 1.0_dtype/det
         Jd(1,1) =  invdet*Xd(2,2)
         Jd(2,1) = -invdet*Xd(2,1)
         Jd(1,2) = -invdet*Xd(1,2)
         Jd(2,2) =  invdet*Xd(1,1)
 
-        ! Compute the interpolated design value
+        ! Compute the interpolated design value at Gauss quadrature point
         rval = rho(conn(1, index) + 1)*ns(1) + &
                rho(conn(2, index) + 1)*ns(2) + &
                rho(conn(3, index) + 1)*ns(3) + &
