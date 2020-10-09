@@ -181,19 +181,19 @@ class ComplianceFrequency(ParOpt.Problem):
         Avals = self.Kvals - self.lambda0*self.Mvals
 
         # Form the matrix
-        # Amat = sparse.csr_matrix((Avals, self.cols, self.rowp),
-        #                          shape=(self.nvars, self.nvars))
-        Kmat = sparse.csr_matrix((self.Kvals, self.cols, self.rowp), shape=(self.nvars, self.nvars))
-        Mmat = sparse.csr_matrix((self.Mvals, self.cols, self.rowp), shape=(self.nvars, self.nvars))
+        Amat = sparse.csr_matrix((Avals, self.cols, self.rowp),
+                                 shape=(self.nvars, self.nvars))
 
         # Find the smallest eigenvalues close to zero that have the smallest real part
-        self.eigvals, self.eigvecs = linalg.eigsh(Kmat, M=Mmat, k=self.num_eigs, sigma=0,
-                                                  which='SA', tol=1e-3)
+        self.eigvals, self.eigvecs = linalg.eigsh(Amat, k=self.num_eigs, sigma=0.0,
+                                                  which='SA', tol=1e-8)
+
+        print(self.eigvals)
 
         # Compute the smallest eigenvalue
-        eta = np.exp(-self.ks_parameter*(self.eigsvals - np.min(self.eigvals)))
+        eta = np.exp(-self.ks_parameter*(self.eigvals - np.min(self.eigvals)))
 
-        ksvalue = np.min(self.eigvals) - np.log(np.sum(self.eta))/self.ks_parameter
+        ksvalue = np.min(self.eigvals) - np.log(np.sum(eta))/self.ks_parameter
 
         self.eta = eta/np.sum(eta)
 
@@ -201,18 +201,22 @@ class ComplianceFrequency(ParOpt.Problem):
 
     def frequency_grad(self, x):
 
+        # Apply the filter to obtain the filtered values
+        rho = self.F.dot(x)
+
         dfdx = np.zeros(x.shape)
         temp = np.zeros(x.shape)
 
         for i in range(self.num_eigs):
             # Compute the derivative of d(eigvec^{T}*K(x)*eigvec)
+            psi = self.eigvecs[:,i]
             plane_stress.computekmatderiv(self.conn.T, self.vars.T, self.X.T,
-                self.qval, self.C.T, rho, self.eigvecs[i], self.eigvecs[i], temp)
+                self.qval, self.C.T, rho, psi.T, psi.T, temp)
             dfdx += self.eta[i]*temp
 
             # Compute the derivative of d(eigvec^{T}*M(x)*eigvec)
-            plane_stress.computekmatderiv(self.conn.T, self.vars.T, self.X.T,
-                self.density, self.eigvecs[i], self.eigvecs[i], temp)
+            plane_stress.computemmatderiv(self.conn.T, self.vars.T, self.X.T,
+                self.density, psi.T, psi.T, temp)
             dfdx -= self.lambda0*self.eta[i]*temp
 
         dfdx = (self.F.transpose()).dot(dfdx)

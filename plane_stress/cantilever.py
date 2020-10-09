@@ -65,6 +65,10 @@ rho = np.ones(nnodes)
 C = np.zeros((3, 3))
 qval = 5.0
 
+density = 2700.0 # kg/m^3
+lambda0 = 5.0**2
+ks_parameter = 100.0
+
 E = 70e3
 nu = 0.3
 C[0, 0] = E/(1.0 - nu**2)
@@ -98,10 +102,6 @@ j = 0
 force[vars[i + j*(nx+1), 1]] = -1.0e2
 
 # problem = ComplianceMinimization(conn, vars, X, force, r0, qval, C)
-
-density = 1.0
-lambda0 = 1.0
-ks_parameter = 100.0
 
 problem = ComplianceFrequency(conn, vars, X, force, r0, qval, C,
     density, lambda0, ks_parameter)
