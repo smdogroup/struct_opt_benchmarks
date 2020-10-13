@@ -186,14 +186,15 @@ class ComplianceFrequency(ParOpt.Problem):
 
         # Find the smallest eigenvalues close to zero that have the smallest real part
         self.eigvals, self.eigvecs = linalg.eigsh(Amat, k=self.num_eigs, sigma=0.0,
-                                                  which='SA', tol=1e-8)
-
-        print(self.eigvals)
+                                                  which='LM', tol=1e-8)
 
         # Compute the smallest eigenvalue
         eta = np.exp(-self.ks_parameter*(self.eigvals - np.min(self.eigvals)))
 
         ksvalue = np.min(self.eigvals) - np.log(np.sum(eta))/self.ks_parameter
+
+        print('eigenvalues: ', self.eigvals)
+        print('ks value: %15.5e'%(ksvalue))
 
         self.eta = eta/np.sum(eta)
 

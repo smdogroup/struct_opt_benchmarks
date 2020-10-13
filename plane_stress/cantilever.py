@@ -66,7 +66,9 @@ C = np.zeros((3, 3))
 qval = 5.0
 
 density = 2700.0 # kg/m^3
-lambda0 = 5.0**2
+
+frequency = 0.5
+lambda0 = (2.0*np.pi*frequency)**2
 ks_parameter = 100.0
 
 E = 70e3
@@ -99,7 +101,7 @@ for j in range(ny+1):
 force = np.zeros(nvars)
 i = nx
 j = 0
-force[vars[i + j*(nx+1), 1]] = -1.0e2
+force[vars[i + j*(nx+1), 1]] = -25.0
 
 # problem = ComplianceMinimization(conn, vars, X, force, r0, qval, C)
 
@@ -110,17 +112,19 @@ problem.checkGradients()
 
 options = {
     'algorithm': 'tr',
+    'output_level': 2,
+    'norm_type': 'l1',
     'tr_init_size': 0.05,
-    'tr_min_size': 1e-6,
+    'tr_min_size': 0.001,
     'tr_max_size': 10.0,
     'tr_eta': 0.25,
     'tr_infeas_tol': 1e-6,
     'tr_l1_tol': 1e-3,
     'tr_linfty_tol': 0.0,
-    'tr_adaptive_gamma_update': True,
-    'tr_max_iterations': 1000,
-    'penalty_gamma': 10.0,
-    'qn_subspace_size': 10,
+    'tr_adaptive_gamma_update': False,
+    'tr_max_iterations': 200,
+    'penalty_gamma': 50.0,
+    'qn_subspace_size': 2,
     'qn_type': 'bfgs',
     'qn_diag_type': 'yts_over_sts',
     'abs_res_tol': 1e-8,
@@ -137,6 +141,8 @@ opt = ParOpt.Optimizer(problem, options)
 # Set a new starting point
 opt.optimize()
 x, z, zw, zl, zu = opt.getOptimizedPoint()
+
+problem.checkGradients(x=x)
 
 rho = problem.F.dot(x[:])
 
