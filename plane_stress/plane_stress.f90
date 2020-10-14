@@ -972,108 +972,286 @@ subroutine computeMmatDeriv(n, ne, nvars, conn, vars, X, density, psi, phi, dfdx
 
 end subroutine computeMmatDeriv
 
-! subroutine computeAllStress( &
-!   ftype, xi, eta, n, ne, ntw, nmat, &
-!   conn, X, U, tconn, tweights, xdv, &
-!   epsilon, h, G, stress)
-! ! Compute the stress constraints for each material in all of the
-! ! elements in the finite-element mesh.
-! !
-! ! Input:
-! ! ftype:    the type of failure parametrization to use
-! ! xi, eta:  the xi/eta locations within all elements
-! ! n:        the number of nodes
-! ! ne:       the number of elements
-! ! ntw:      the maximum size of the thickness filter
-! ! nmat:     the number of materials
-! ! conn:     the connectivity of the underlying mesh
-! ! X:        the nodal locations in the mesh
-! ! U:        the nodal displacements
-! ! tconn:    the thickness/material filter connectivity
-! ! tweights: the thickness/material filter weights
-! ! xdv:      the values of the design variables
-! ! epsilon:  the epsilon relaxation factor
-! ! h:        the values of the linear terms
-! ! G:        the values of the quadratic terms
-! !
-! ! Output:
-! ! stress:   the values of the stress constraints
+subroutine computeStress( &
+  n, ne, nvars, conn, vars, X, &
+  epsilon, C, u, rho, stress)
+! Compute the stress value at each quadrature point in each element
+! in the mesh
+!
 
-! use precision
-! implicit none
+use precision
+implicit none
 
-! integer, intent(in) :: ftype
-! real(kind=dtype), intent(in) :: xi, eta
-! integer, intent(in) :: n, ne, ntw, nmat, conn(4,ne)
-! real(kind=dtype), intent(in) :: X(2,n), U(2,n)
-! integer, intent(in) :: tconn(ntw,ne)
-! real(kind=dtype), intent(in) :: tweights(ntw,ne), xdv(nmat+1,ne)
-! real(kind=dtype), intent(in) :: epsilon, h(3,nmat), G(3,3,nmat)
-! real(kind=dtype), intent(inout) :: stress(nmat,ne)
+integer, intent(in) :: n, ne, nvars, conn(4, ne), vars(2, n)
+real(kind=dtype), intent(in) :: X(2,n), u(nvars), rho(n)
+real(kind=dtype), intent(in) :: epsilon, C(3,3)
+real(kind=dtype), intent(inout) :: stress(4, ne)
 
-! ! Temporary data used internally
-! integer :: i, j, k
-! real(kind=dtype) :: findex, ttmp, xtmp, e(3), etmp(3)
-! real(kind=dtype) :: Xd(2,2), Ud(2,2), Jd(2,2), invdet
-! real(kind=dtype) :: ns(4), nxi(4), neta(4)
+! Temporary data used internally
+integer ::  index, i, j, ivar
+real(kind=dtype) :: e(3), s(3), B(3, 8), ue(8)
+real(kind=dtype) :: Xd(2,2), Jd(2,2), ns(4), nxi(4), neta(4)
+real(kind=dtype) :: quadpts(2)
+real(kind=dtype) :: det, invdet, rval, factor
 
-! ! Set the parameter
-! real(kind=dtype), parameter :: one = 1.0_dtype
+! Set the parameter
+real(kind=dtype), parameter :: one = 1.0_dtype
 
-! ! Zero the temp thickness/materials
-! ttmp = 0.0_dtype
-! xtmp = 0.0_dtype
+! Set the Gauss quadrature point/weight values
+quadpts(1) = -0.577350269189626_dtype
+quadpts(2) = 0.577350269189626_dtype
 
-! ! Evaluate the shape functions at the given point
-! call evalShapeFunctions(xi, eta, ns, nxi, neta)
+do index = 1, ne
+  ! Extract the displacements at the nodes
+  ue(:) = 0.0_dtype
+  do i = 1, 2
+    do j = 1, 4
+      ivar = vars(i, conn(j, index) + 1)
+      if (ivar >= 0) then
+        ue(2*(j-1) + i) = u(ivar+1)
+      end if
+    end do
+  end do
 
-! do i = 1, ne
-!   ! Evaluate the filtered thickness and strain for this element
-!   ttmp = 0.0_dtype
-!   e(:) = 0.0_dtype
-!   do k = 1, ntw
-!      if (tconn(k,i) > 0) then
-!         ! Add up the element thickness
-!         ttmp = ttmp + tweights(k,i)/xdv(1,tconn(k,i))
+  do j = 1,2
+    do i = 1,2
+      ! Evaluate the shape functions
+      call evalShapeFunctions(quadpts(i), quadpts(j), ns, nxi, neta)
 
-!         call getElemGradient(tconn(k,i), n, ne, conn, X, nxi, neta, Xd)
-!         call getElemGradient(tconn(k,i), n, ne, conn, U, nxi, neta, Ud)
+      ! Evaluate the Jacobian of the residuals
+      call getElemGradient(index, n, ne, conn, X, nxi, neta, Xd)
 
-!         ! Compute the inverse of Xd
-!         invdet = 1.0_dtype/(Xd(1,1)*Xd(2,2) - Xd(1,2)*Xd(2,1))
-!         Jd(1,1) =  invdet*Xd(2,2)
-!         Jd(2,1) = -invdet*Xd(2,1)
-!         Jd(1,2) = -invdet*Xd(1,2)
-!         Jd(2,2) =  invdet*Xd(1,1)
+      ! Compute determinant of Xd
+      det = Xd(1,1)*Xd(2,2) - Xd(1,2)*Xd(2,1)
 
-!         ! Evaluate the stress/strain
-!         call evalStrain(Jd, Ud, etmp)
+      ! Compute J = Xd^{-1}
+      invdet = 1.0_dtype/det
+      Jd(1,1) =  invdet*Xd(2,2)
+      Jd(2,1) = -invdet*Xd(2,1)
+      Jd(1,2) = -invdet*Xd(1,2)
+      Jd(2,2) =  invdet*Xd(1,1)
 
-!         ! Add the result to the local strain
-!         e = e + tweights(k,i)*etmp
-!      end if
-!   end do
+      ! Compute the interpolated design value
+      rval = rho(conn(1, index) + 1)*ns(1) + &
+             rho(conn(2, index) + 1)*ns(2) + &
+             rho(conn(3, index) + 1)*ns(3) + &
+             rho(conn(4, index) + 1)*ns(4)
 
-!   findex = one
-!   if (ftype == 2) then
-!      ! Compute the failure index
-!      findex = one + epsilon/ttmp - epsilon
-!   end if
+             ! Evaluate the derivative of the strain matrix
+      call evalBmat(Jd, nxi, neta, B)
 
-!   do j = 1, nmat
-!      ! Evaluate the filtered "thickness" of the material
-!      xtmp = 0.0_dtype
-!      do k = 1, ntw
-!         if (tconn(k,i) > 0) then
-!            xtmp = xtmp + tweights(k,i)/xdv(j+1,tconn(k,i))
-!         end if
-!      end do
+      e = matmul(B, ue)
+      s = matmul(C, e)
 
-!      ! Evaluate the stress constraint from the given material type
-!      stress(j,i) = findex + epsilon/xtmp - epsilon &
-!           - (dot_product(e, h(:,j)) + &
-!           dot_product(e, matmul(G(:,:,j), e)))
-!   end do
-! end do
+      ! Compute the stress relaxation factor
+      factor = rval/(epsilon*(1.0_dtype - rval) + rval)
 
-! end subroutine computeAllStress
+      ! Compute the von Mises stress
+      stress(2*(j-1) + i, index) = &
+        factor*sqrt(s(1)**2 + s(2)**2 - s(1)*s(2) + 3*s(3)**2)
+    end do
+  end do
+end do
+
+end subroutine computeStress
+
+subroutine computeStressDeriv( &
+  n, ne, nvars, conn, vars, X, &
+  epsilon, C, u, rho, dfdstress, dfdrho)
+! Compute the stress value at each quadrature point in each element
+! in the mesh
+!
+
+use precision
+implicit none
+
+integer, intent(in) :: n, ne, nvars, conn(4, ne), vars(2, n)
+real(kind=dtype), intent(in) :: X(2,n), u(nvars), rho(n)
+real(kind=dtype), intent(in) :: epsilon, C(3,3)
+real(kind=dtype), intent(inout) :: dfdstress(4, ne), dfdrho(n)
+
+! Temporary data used internally
+integer ::  index, i, j, k, ivar
+real(kind=dtype) :: e(3), s(3), B(3, 8), ue(8)
+real(kind=dtype) :: Xd(2,2), Jd(2,2), ns(4), nxi(4), neta(4)
+real(kind=dtype) :: quadpts(2)
+real(kind=dtype) :: det, invdet, rval, dfactor, stress
+
+! Set the parameter
+real(kind=dtype), parameter :: one = 1.0_dtype
+
+! Set the Gauss quadrature point/weight values
+quadpts(1) = -0.577350269189626_dtype
+quadpts(2) = 0.577350269189626_dtype
+
+dfdrho(:) = 0.0_dtype
+
+do index = 1, ne
+  ! Extract the displacements at the nodes
+  ue(:) = 0.0_dtype
+  do i = 1, 2
+    do j = 1, 4
+      ivar = vars(i, conn(j, index) + 1)
+      if (ivar >= 0) then
+        ue(2*(j-1) + i) = u(ivar+1)
+      end if
+    end do
+  end do
+
+  do j = 1,2
+    do i = 1,2
+      ! Evaluate the shape functions
+      call evalShapeFunctions(quadpts(i), quadpts(j), ns, nxi, neta)
+
+      ! Evaluate the Jacobian of the residuals
+      call getElemGradient(index, n, ne, conn, X, nxi, neta, Xd)
+
+      ! Compute determinant of Xd
+      det = Xd(1,1)*Xd(2,2) - Xd(1,2)*Xd(2,1)
+
+      ! Compute J = Xd^{-1}
+      invdet = 1.0_dtype/det
+      Jd(1,1) =  invdet*Xd(2,2)
+      Jd(2,1) = -invdet*Xd(2,1)
+      Jd(1,2) = -invdet*Xd(1,2)
+      Jd(2,2) =  invdet*Xd(1,1)
+
+      ! Compute the interpolated design value
+      rval = rho(conn(1, index) + 1)*ns(1) + &
+             rho(conn(2, index) + 1)*ns(2) + &
+             rho(conn(3, index) + 1)*ns(3) + &
+             rho(conn(4, index) + 1)*ns(4)
+
+             ! Evaluate the derivative of the strain matrix
+      call evalBmat(Jd, nxi, neta, B)
+
+      e = matmul(B, ue)
+      s = matmul(C, e)
+
+      ! Compute the stress relaxation factor
+      dfactor = epsilon/(epsilon*(1.0_dtype - rval) + rval)**2
+
+      ! Add the factor from the derivative of the function with respect to
+      ! the stress
+      dfactor = dfactor*dfdstress(2*(j-1) + i, index)
+
+      ! Compute the von Mises stress
+      stress = sqrt(s(1)**2 + s(2)**2 - s(1)*s(2) + 3*s(3)**2)
+
+      ! Compute the von Mises stress
+      do k = 1, 4
+        dfdrho(conn(k, index)+1) = dfdrho(conn(k, index)+1) + ns(k)*dfactor*stress
+      end do
+    end do
+  end do
+end do
+
+end subroutine computeStressDeriv
+
+subroutine computeStressStateDeriv( &
+  n, ne, nvars, conn, vars, X, &
+  epsilon, C, u, rho, dfdstress, dfdu)
+! Compute the stress value at each quadrature point in each element
+! in the mesh
+!
+
+use precision
+implicit none
+
+integer, intent(in) :: n, ne, nvars, conn(4, ne), vars(2, n)
+real(kind=dtype), intent(in) :: X(2,n), u(nvars), rho(n)
+real(kind=dtype), intent(in) :: epsilon, C(3,3), dfdstress(4, ne)
+real(kind=dtype), intent(inout) :: dfdu(nvars)
+
+! Temporary data used internally
+integer ::  index, i, j, ivar
+real(kind=dtype) :: e(3), s(3), B(3, 8), ue(8)
+real(kind=dtype) :: Xd(2,2), Jd(2,2), ns(4), nxi(4), neta(4)
+real(kind=dtype) :: quadpts(2), dfdue(8), dfds(3), dfde(3)
+real(kind=dtype) :: det, invdet, rval, factor, stress
+
+! Set the parameter
+real(kind=dtype), parameter :: one = 1.0_dtype
+
+! Set the Gauss quadrature point/weight values
+quadpts(1) = -0.577350269189626_dtype
+quadpts(2) = 0.577350269189626_dtype
+
+dfdu(:) = 0.0_dtype
+
+do index = 1, ne
+  ! Extract the displacements at the nodes
+  ue(:) = 0.0_dtype
+  do i = 1, 2
+    do j = 1, 4
+      ivar = vars(i, conn(j, index) + 1)
+      if (ivar >= 0) then
+        ue(2*(j-1) + i) = u(ivar+1)
+      end if
+    end do
+  end do
+
+  dfdue(:) = 0.0_dtype
+
+  do j = 1,2
+    do i = 1,2
+      ! Evaluate the shape functions
+      call evalShapeFunctions(quadpts(i), quadpts(j), ns, nxi, neta)
+
+      ! Evaluate the Jacobian of the residuals
+      call getElemGradient(index, n, ne, conn, X, nxi, neta, Xd)
+
+      ! Compute determinant of Xd
+      det = Xd(1,1)*Xd(2,2) - Xd(1,2)*Xd(2,1)
+
+      ! Compute J = Xd^{-1}
+      invdet = 1.0_dtype/det
+      Jd(1,1) =  invdet*Xd(2,2)
+      Jd(2,1) = -invdet*Xd(2,1)
+      Jd(1,2) = -invdet*Xd(1,2)
+      Jd(2,2) =  invdet*Xd(1,1)
+
+      ! Compute the interpolated design value
+      rval = rho(conn(1, index) + 1)*ns(1) + &
+             rho(conn(2, index) + 1)*ns(2) + &
+             rho(conn(3, index) + 1)*ns(3) + &
+             rho(conn(4, index) + 1)*ns(4)
+
+             ! Evaluate the derivative of the strain matrix
+      call evalBmat(Jd, nxi, neta, B)
+
+      e = matmul(B, ue)
+      s = matmul(C, e)
+
+      ! Compute the stress relaxation factor
+      factor = rval/(epsilon*(1.0_dtype - rval) + rval)
+
+      ! Add the factor from the derivative of the function with
+      ! respect to the stress at this quadrautre point
+      factor = factor*dfdstress(2*(j-1) + i, index)
+
+      ! Compute the von Mises stress
+      stress = sqrt(s(1)**2 + s(2)**2 - s(1)*s(2) + 3*s(3)**2)
+
+      ! Compute the derivative of the stress
+      dfds(1) = factor*(s(1) - 0.5_dtype*s(2))/stress
+      dfds(2) = factor*(s(2) - 0.5_dtype*s(1))/stress
+      dfds(3) = factor*(3.0_dtype*s(3))/stress
+
+      dfde = matmul(C, dfds)
+
+      dfdue = dfdue + matmul(transpose(B), dfde)
+    end do
+  end do
+
+  do i = 1, 2
+    do j = 1, 4
+      ivar = vars(i, conn(j, index) + 1)
+      if (ivar >= 0) then
+        dfdu(ivar+1) = dfdu(ivar+1) + dfdue(2*(j-1) + i)
+      end if
+    end do
+  end do
+end do
+
+end subroutine computeStressStateDeriv

@@ -9,8 +9,8 @@ import matplotlib.pylab as plt
 import matplotlib.tri as tri
 from paropt import ParOpt
 
-class ComplianceMinimization(ParOpt.Problem):
-    def __init__(self, conn, vars, X, force, r0, qval, C):
+class StressMinimization(ParOpt.Problem):
+    def __init__(self, conn, vars, X, force, r0, qval, C, epsilon, ys, ks_parameter):
         """
         The constructor for the topology optimization class.
 
@@ -25,13 +25,16 @@ class ComplianceMinimization(ParOpt.Problem):
         self.X = X
         self.force = force
         self.qval = qval
+        self.epsilon = epsilon
         self.C = C
+        self.ys = ys
+        self.ks_parameter = ks_parameter
 
         # Set the number of variables and the number of nodes
         self.nvars = np.max(self.vars) + 1
         self.nnodes = np.max(self.conn) + 1
 
-        super(ComplianceMinimization, self).__init__(MPI.COMM_SELF, self.nnodes, 1)
+        super(StressMinimization, self).__init__(MPI.COMM_SELF, self.nnodes, 1)
 
         # Compute the non-zero pattern for the sparse matrix
         rowp = np.zeros(self.nvars+1, dtype=np.intc)
@@ -103,9 +106,9 @@ class ComplianceMinimization(ParOpt.Problem):
 
         return dmdx
 
-    def compliance(self, x):
+    def ks_stress(self, x):
         """
-        Compute the structural compliance
+        Compute the KS approximation of the maximum stress
         """
 
         # Compute the filtered compliance. Note that 'dot' is scipy
@@ -125,39 +128,60 @@ class ComplianceMinimization(ParOpt.Problem):
         # Compute the solution to the linear system K*u = f
         self.u = self.LU(self.force)
 
+        # Compute the stress values
+        self.stress = np.zeros((self.conn.shape[0], 4))
+        plane_stress.computestress(self.conn.T, self.vars.T, self.X.T,
+            self.epsilon, self.C.T, self.u, rho, self.stress.T)
+
+        # Normalize by the yield stress
+        self.stress = self.stress/self.ys
+
+        max_stress = np.max(self.stress)
+        self.eta = np.exp(self.ks_parameter*(self.stress - max_stress))
+        eta_sum = np.sum(self.eta)
+
+        ks = max_stress + np.log(eta_sum)/self.ks_parameter
+        self.eta = self.eta/eta_sum
+
         # Return the compliance
-        return np.dot(self.force, self.u)
+        return ks
 
-    def compliance_grad(self, x):
+    def ks_stress_grad(self, x):
         """
-        Compute the gradient of the compliance using the adjoint
-        method.
-
-        Since the governing equations are self-adjoint, and the
-        function itself takes a special form:
-
-        K*psi = f => psi = u
-
-        So we can skip the adjoint computation itself since we have
-        the displacement vector u from the solution.
-
-        d(compliance)/dx = - u^{T}*d(K*u - f)/dx = - u^{T}*dK/dx*u
+        Compute the gradient of the approximate maximum stress
         """
 
         # Compute the filtered variables
         rho = self.F.dot(x)
 
-        # First compute the derivative with respect to the filtered
-        # variables
-        dKdrho = np.zeros(x.shape)
+        # Compute the derivative of the ks function with respect to rho
+        dfdrho = np.zeros(self.nnodes)
+        temp = np.zeros(self.nnodes)
 
+        # Compute dfdu
+        dfdu = np.zeros(self.nvars)
+        plane_stress.computestressstatederiv(self.conn.T, self.vars.T, self.X.T,
+            self.epsilon, self.C.T, self.u, rho, self.eta.T, dfdu)
+
+        # Compute the adjoint variables
+        psi = self.LU(dfdu)
+
+        # Compute the derivative w.r.t.
+        plane_stress.computestressderiv(self.conn.T, self.vars.T, self.X.T,
+            self.epsilon, self.C.T, self.u, rho, self.eta.T, dfdrho)
+
+        # Compute the total derivative
         plane_stress.computekmatderiv(self.conn.T, self.vars.T, self.X.T,
-            self.qval, self.C.T, rho, self.u, self.u, dKdrho)
+            self.qval, self.C.T, rho, psi, self.u, temp)
 
-        # Now evaluate the effect of the filter
-        dcdx = -(self.F.transpose()).dot(dKdrho)
+        # Compute the remainder of the total derivative
+        dfdrho -= temp
 
-        return dcdx
+        dksdx = (self.F.transpose()).dot(dfdrho)
+
+        dksdx /= self.ys
+
+        return dksdx
 
     def getVarsAndBounds(self, x, lb, ub):
         """Get the variable values and bounds"""
@@ -172,7 +196,7 @@ class ComplianceMinimization(ParOpt.Problem):
         """
 
         fail = 0
-        obj = self.compliance(x[:])
+        obj = self.ks_stress(x[:])
         con = np.array([0.4*self.total_mass - self.mass(x[:])])
 
         return fail, obj, con
@@ -183,7 +207,9 @@ class ComplianceMinimization(ParOpt.Problem):
         """
 
         fail = 0
-        g[:] = self.compliance_grad(x[:])
+        g[:] = self.ks_stress_grad(x[:])
         A[0][:] = -self.mass_grad(x[:])
+
+        # self.write_output(x[:])
 
         return fail

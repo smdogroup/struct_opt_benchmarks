@@ -11,6 +11,7 @@ from paropt import ParOpt
 
 from compliance_minimization import ComplianceMinimization
 from compliance_frequency import ComplianceFrequency
+from stress_minimization import StressMinimization
 
 def plot_solution(X, u, conn):
     triangles = []
@@ -49,7 +50,7 @@ def plot_solution(X, u, conn):
     # # Close the figure
     # plt.close()
 
-nx = 64
+nx = 128
 ny = 64
 
 r0 = 1.0/32.0
@@ -65,9 +66,10 @@ rho = np.ones(nnodes)
 C = np.zeros((3, 3))
 qval = 5.0
 
+Lx = 2.0
+Ly = 1.0
 density = 2700.0 # kg/m^3
-
-frequency = 0.5
+frequency = 0.25
 lambda0 = (2.0*np.pi*frequency)**2
 ks_parameter = 100.0
 
@@ -89,8 +91,8 @@ for j in range(ny):
 nvars = 0
 for j in range(ny+1):
     for i in range(nx+1):
-        X[i + j*(nx+1), 0] = 1.0*i/nx
-        X[i + j*(nx+1), 1] = 1.0*j/ny
+        X[i + j*(nx+1), 0] = Lx*i/nx
+        X[i + j*(nx+1), 1] = Ly*j/ny
         if i > 0:
             vars[i + j*(nx+1), 0] = nvars
             nvars += 1
@@ -101,12 +103,23 @@ for j in range(ny+1):
 force = np.zeros(nvars)
 i = nx
 j = 0
-force[vars[i + j*(nx+1), 1]] = -25.0
+
+Ftotal = 25.0
+nforce = ny//16
+for j in range(nforce):
+    force[vars[i + j*(nx+1), 1]] -= 0.5*Ftotal/nforce
+    force[vars[i + (j+1)*(nx+1), 1]] -= 0.5*Ftotal/nforce
 
 # problem = ComplianceMinimization(conn, vars, X, force, r0, qval, C)
 
 problem = ComplianceFrequency(conn, vars, X, force, r0, qval, C,
     density, lambda0, ks_parameter)
+
+# ks_parameter = 30.0
+# epsilon = 0.3
+# ys = 200.0
+# problem = StressMinimization(conn, vars, X, force, r0, qval, C,
+#     epsilon, ys, ks_parameter)
 
 problem.checkGradients()
 
@@ -115,14 +128,14 @@ options = {
     'output_level': 2,
     'norm_type': 'l1',
     'tr_init_size': 0.05,
-    'tr_min_size': 0.001,
+    'tr_min_size': 0.01,
     'tr_max_size': 10.0,
     'tr_eta': 0.25,
     'tr_infeas_tol': 1e-6,
-    'tr_l1_tol': 1e-3,
+    'tr_l1_tol': 0.0, # 1e-3,
     'tr_linfty_tol': 0.0,
     'tr_adaptive_gamma_update': False,
-    'tr_max_iterations': 200,
+    'tr_max_iterations': 500,
     'penalty_gamma': 50.0,
     'qn_subspace_size': 2,
     'qn_type': 'bfgs',
