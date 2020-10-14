@@ -258,6 +258,255 @@ subroutine computeMassDeriv(n, ne, conn, X, dmdx)
 
 end subroutine computeMassDeriv
 
+subroutine computeMomOfInertia(n, ne, conn, X, rho, inertia)
+  ! Compute the moment of inertia around center of mass
+  ! Input:
+  ! n:        the number of nodes
+  ! ne:       the number of elements
+  ! conn:     the connectivity of the underlying mesh
+  ! X:        the nodal locations in the mesh
+  ! rho:      the density values within each element
+  !
+  ! Output:
+  ! inertia:     the moment of inertia around center of mass
+
+  use precision
+  implicit none
+
+  integer, intent(in) :: n, ne, conn(4, ne)
+  real(kind=dtype), intent(in) :: X(2, n), rho(n)
+  real(kind=dtype), intent(out) :: inertia
+
+  ! Temporary data used internally
+  integer :: index, i, j
+  real(kind=dtype) :: Xd(2, 2), ns(4), nxi(4), neta(4)
+  real(kind=dtype) :: quadpts(2), quadwts(2)
+  real(kind=dtype) :: det, rval, masse, mass
+  real(kind=dtype) :: xe, ye, re2, xcg, ycg, rcg2
+
+  ! Zero the initial moment of inertia
+  inertia = 0.0_dtype
+  xcg = 0.0_dtype
+  ycg = 0.0_dtype
+
+  ! Set the Gauss quadrature point/weight values
+  quadpts(1) = -0.577350269189626_dtype
+  quadpts(2) = 0.577350269189626_dtype
+  quadwts(1) = 1.0_dtype
+  quadwts(2) = 1.0_dtype
+
+  ! Loop over all elements within the mesh
+  do index = 1, ne
+    ! Loop over the quadrature points within the finite element
+    do j = 1,2
+      do i = 1,2
+        ! Evaluate the shape functions
+        call evalShapeFunctions(quadpts(i), quadpts(j), ns, nxi, neta)
+
+        ! Evaluate the Jacobian of the residuals
+        call getElemGradient(index, n, ne, conn, X, nxi, neta, Xd)
+
+        ! Compute determinant of Xd
+        det = Xd(1,1)*Xd(2,2) - Xd(1,2)*Xd(2,1)
+
+        ! Compute the interpolated design value
+        rval = rho(conn(1, index) + 1)*ns(1) + &
+               rho(conn(2, index) + 1)*ns(2) + &
+               rho(conn(3, index) + 1)*ns(3) + &
+               rho(conn(4, index) + 1)*ns(4)
+
+        ! Compute the element mass
+        masse = rval*det*quadwts(i)*quadwts(j)
+
+        ! Compute the coordinates of current element
+        xe = ( X(1, conn(1, index) + 1) + &
+               X(1, conn(2, index) + 1) + &
+               X(1, conn(3, index) + 1) + &
+               X(1, conn(4, index) + 1) ) / 4.0
+        ye = ( X(2, conn(1, index) + 1) + &
+               X(2, conn(2, index) + 1) + &
+               X(2, conn(3, index) + 1) + &
+               X(2, conn(4, index) + 1) ) / 4.0
+        re2 = xe**2 + ye**2
+
+        ! Compute coordinates center of mass
+        xcg = xcg + masse*xe
+        ycg = ycg + masse*ye
+
+        ! Add the contribution fo the total inertia
+        inertia = inertia + masse*re2
+      end do
+    end do
+  end do
+
+  ! Compute coordinates center of mass
+  call computeMass(n, ne, conn, X, rho, mass)
+  xcg = xcg / mass
+  ycg = ycg / mass
+  rcg2 = xcg**2 + ycg**2
+
+  ! Convert the moment inertia around origin to center of mass
+  inertia = inertia - mass*rcg2
+
+end subroutine computeMomOfInertia
+
+subroutine computeMomOfInertiaDeriv(n, ne, conn, X, rho, dinertiadx)
+  ! Compute the derivative of moment of inertia
+  ! of the structure given the material densities
+  !
+  ! Input:
+  ! n:          the number of nodes
+  ! ne:         the number of elements
+  ! conn:       the connectivity of the underlying mesh
+  ! X:          the nodal locations in the mesh
+  ! rho:      the density values within each element
+  !
+  ! Output:
+  ! dinertiadx: the derivative of inertia
+
+  use precision
+  implicit none
+
+  integer, intent(in) :: n, ne, conn(4, ne)
+  real(kind=dtype), intent(in) :: X(2, n), rho(n)
+  real(kind=dtype), intent(inout) :: dinertiadx(n)
+
+  ! Temporary data used internally
+  integer :: index, i, j
+  real(kind=dtype) :: Xd(2, 2), ns(4), nxi(4), neta(4)
+  real(kind=dtype) :: quadpts(2), quadwts(2)
+  real(kind=dtype) :: det, h, dmdx(n), edinertiadx(4)
+  real(kind=dtype) :: ed1stmomxdx(4), ed1stmomydx(4), edmdx(4)
+  real(kind=dtype) :: xe, ye, re2, xcg, ycg, rcg2, mass
+  real(kind=dtype) :: firstmomx, firstmomy, rval, masse
+
+  ! Set the Gauss quadrature point/weight values
+  quadpts(1) = -0.577350269189626_dtype
+  quadpts(2) = 0.577350269189626_dtype
+  quadwts(1) = 1.0_dtype
+  quadwts(2) = 1.0_dtype
+
+  ! Compute total mass
+  call computeMass(n, ne, conn, X, rho, mass)
+
+  ! Loop over all elements to get center of mass and 1st moments
+  firstmomx = 0.0_dtype
+  firstmomy = 0.0_dtype
+  do index = 1, ne
+    ! Loop over the quadrature points within the finite element
+    do j = 1,2
+      do i = 1,2
+        ! Evaluate the shape functions
+        call evalShapeFunctions(quadpts(i), quadpts(j), ns, nxi, neta)
+
+        ! Evaluate the Jacobian of the residuals
+        call getElemGradient(index, n, ne, conn, X, nxi, neta, Xd)
+
+        ! Compute determinant of Xd
+        det = Xd(1,1)*Xd(2,2) - Xd(1,2)*Xd(2,1)
+
+        ! Compute the interpolated design value
+        rval = rho(conn(1, index) + 1)*ns(1) + &
+               rho(conn(2, index) + 1)*ns(2) + &
+               rho(conn(3, index) + 1)*ns(3) + &
+               rho(conn(4, index) + 1)*ns(4)
+
+        ! Compute the element mass
+        masse = rval*det*quadwts(i)*quadwts(j)
+
+        ! Compute the coordinates of current element
+        xe = ( X(1, conn(1, index) + 1) + &
+               X(1, conn(2, index) + 1) + &
+               X(1, conn(3, index) + 1) + &
+               X(1, conn(4, index) + 1) ) / 4.0
+        ye = ( X(2, conn(1, index) + 1) + &
+               X(2, conn(2, index) + 1) + &
+               X(2, conn(3, index) + 1) + &
+               X(2, conn(4, index) + 1) ) / 4.0
+
+        ! Compute first moments of area
+        firstmomx = firstmomx + masse*xe
+        firstmomy = firstmomy + masse*ye
+      end do
+    end do
+  end do
+
+  ! Compute center of mass
+  xcg = firstmomx / mass
+  ycg = firstmomy / mass
+  rcg2 = xcg**2 + ycg**2
+
+  dinertiadx(:) = 0.0_dtype
+
+  ! Loop over all elements within the mesh
+  do index = 1, ne
+    ! Zero the element-wise derivative
+    edinertiadx(:) = 0.0_dtype
+    ed1stmomxdx(:) = 0.0_dtype
+    ed1stmomydx(:) = 0.0_dtype
+    edmdx(:) = 0.0_dtype
+
+    ! Loop over the quadrature points within the finite element
+    do j = 1,2
+      do i = 1,2
+        ! Evaluate the shape functions
+        call evalShapeFunctions(quadpts(i), quadpts(j), ns, nxi, neta)
+
+        ! Evaluate the Jacobian of the residuals
+        call getElemGradient(index, n, ne, conn, X, nxi, neta, Xd)
+
+        ! Compute determinant of Xd
+        det = Xd(1,1)*Xd(2,2) - Xd(1,2)*Xd(2,1)
+
+        ! Compute the coordinates of current element
+        xe = ( X(1, conn(1, index) + 1) + &
+              X(1, conn(2, index) + 1) + &
+              X(1, conn(3, index) + 1) + &
+              X(1, conn(4, index) + 1) ) / 4.0
+        ye = ( X(2, conn(1, index) + 1) + &
+              X(2, conn(2, index) + 1) + &
+              X(2, conn(3, index) + 1) + &
+              X(2, conn(4, index) + 1) ) / 4.0
+        re2 = xe**2 + ye**2
+
+        h = det*quadwts(i)*quadwts(j)
+
+        edinertiadx(1) = edinertiadx(1) + h*ns(1)*re2
+        edinertiadx(2) = edinertiadx(2) + h*ns(2)*re2
+        edinertiadx(3) = edinertiadx(3) + h*ns(3)*re2
+        edinertiadx(4) = edinertiadx(4) + h*ns(4)*re2
+
+        ed1stmomxdx(1) = ed1stmomxdx(1) + h*ns(1)*xe
+        ed1stmomxdx(2) = ed1stmomxdx(2) + h*ns(2)*xe
+        ed1stmomxdx(3) = ed1stmomxdx(3) + h*ns(3)*xe
+        ed1stmomxdx(4) = ed1stmomxdx(4) + h*ns(4)*xe
+
+        ed1stmomydx(1) = ed1stmomydx(1) + h*ns(1)*ye
+        ed1stmomydx(2) = ed1stmomydx(2) + h*ns(2)*ye
+        ed1stmomydx(3) = ed1stmomydx(3) + h*ns(3)*ye
+        ed1stmomydx(4) = ed1stmomydx(4) + h*ns(4)*ye
+
+        edmdx(1) = edmdx(1) + h*ns(1)
+        edmdx(2) = edmdx(2) + h*ns(2)
+        edmdx(3) = edmdx(3) + h*ns(3)
+        edmdx(4) = edmdx(4) + h*ns(4)
+      end do
+    end do
+
+    do i = 1, 4
+      dinertiadx(conn(i, index) + 1) = &
+        dinertiadx(conn(i, index) + 1) + edinertiadx(i) &
+        - 2.0*xcg*(ed1stmomxdx(i) - firstmomx/mass*edmdx(i)) &
+        - 2.0*ycg*(ed1stmomydx(i) - firstmomy/mass*edmdx(i))
+    end do
+  end do
+
+  ! Subtract the contribution of mass
+  call computeMassDeriv(n, ne, conn, X, dmdx)
+  dinertiadx = dinertiadx - rcg2*dmdx
+
+end subroutine computeMomOfInertiaDeriv
+
 subroutine computePenalty(rho, qval, penalty)
   ! Given the density, compute the corresponding penalty
 
