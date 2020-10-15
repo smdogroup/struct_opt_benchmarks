@@ -10,8 +10,9 @@ import matplotlib.tri as tri
 
 class PlaneStressAnalysis(om.ExplicitComponent):
 
-    def __init__(self, conn, vars, X, force, r0, qval, C, density,
-                 freqconstr=False, lambda0=0.0, ks_parameter=100.0):
+    def __init__(self, conn, vars, X, force, r0, qval, C, density=1.0,
+                 epsilon=1.0, ys=1.0, ks_parameter=100.0,
+                 freqconstr=False, lambda0=0.0):
         super().__init__()
 
         # Save the data
@@ -22,6 +23,8 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         self.qval = qval
         self.C = C
         self.density = density
+        self.epsilon = epsilon
+        self.ys = ys
         self.freqconstr = freqconstr
         self.lambda0 = lambda0
         self.ks_parameter = ks_parameter
@@ -53,7 +56,6 @@ class PlaneStressAnalysis(om.ExplicitComponent):
 
         # Compute the mass (area) of the structure with a full density
         rho = np.ones(self.nnodes)
-        self.total_mass = plane_stress.computemass(self.conn.T, self.X.T, rho)
 
         # Now, compute the filter weights and store them as a sparse
         # matrix
@@ -91,6 +93,10 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         self.declare_partials(of='c', wrt='x')
         self.add_output('m', shape=(1,), desc='mass constraint')
         self.declare_partials(of='m', wrt='x')
+        self.add_output('inertia', shape=(1,), desc='moment of inertia')
+        self.declare_partials(of='inertia', wrt='x')
+        self.add_output('ks_stress', shape=(1,), desc='ks aggregation of stress')
+        self.declare_partials(of='ks_stress', wrt='x')
         if self.freqconstr is True:
             self.add_output('freq', shape=(1,),
                             desc='frequency constraint')
@@ -113,6 +119,29 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         plane_stress.computemassderiv(self.conn.T, self.X.T, dmdx)
 
         return dmdx
+
+    def inertia(self, x):
+        """
+        Compute the moment of inertia of the structure
+        around center of mass
+        """
+
+        inertia = plane_stress.computemomofinertia(
+            self.conn.T, self.X.T, x)
+
+        return inertia
+
+    def inertia_grad(self, x):
+        """
+        Compute the derivative of moment of inertia of
+        the structure around center of mass
+        """
+
+        dinertiadx = np.zeros(x.shape)
+        plane_stress.computemomofinertiaderiv(
+            self.conn.T, self.X.T, x, dinertiadx)
+
+        return dinertiadx
 
     def compliance(self, x):
         """
@@ -169,6 +198,83 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         dcdx = -(self.F.transpose()).dot(dKdrho)
 
         return dcdx
+
+    def ks_stress(self, x):
+        """
+        Compute the KS approximation of the maximum stress
+        """
+
+        # Compute the filtered compliance. Note that 'dot' is scipy
+        # matrix-vector multiplicataion
+        rho = self.F.dot(x)
+
+        # Compute the stiffness matrix
+        plane_stress.computekmat(self.conn.T, self.vars.T, self.X.T,
+            self.qval, self.C.T, rho, self.rowp, self.cols, self.Kvals)
+
+        # Form the matrix
+        Kmat = sparse.csr_matrix((self.Kvals, self.cols, self.rowp),
+                                 shape=(self.nvars, self.nvars))
+        self.Kmat = Kmat.tocsc()
+        self.LU = linalg.dsolve.factorized(self.Kmat)
+
+        # Compute the solution to the linear system K*u = f
+        self.u = self.LU(self.force)
+
+        # Compute the stress values
+        self.stress = np.zeros((self.conn.shape[0], 4))
+        plane_stress.computestress(self.conn.T, self.vars.T, self.X.T,
+            self.epsilon, self.C.T, self.u, rho, self.stress.T)
+
+        # Normalize by the yield stress
+        self.stress = self.stress/self.ys
+
+        max_stress = np.max(self.stress)
+        self.eta = np.exp(self.ks_parameter*(self.stress - max_stress))
+        eta_sum = np.sum(self.eta)
+
+        ks = max_stress + np.log(eta_sum)/self.ks_parameter
+        self.eta = self.eta/eta_sum
+
+        # Return the compliance
+        return ks
+
+    def ks_stress_grad(self, x):
+        """
+        Compute the gradient of the approximate maximum stress
+        """
+
+        # Compute the filtered variables
+        rho = self.F.dot(x)
+
+        # Compute the derivative of the ks function with respect to rho
+        dfdrho = np.zeros(self.nnodes)
+        temp = np.zeros(self.nnodes)
+
+        # Compute dfdu
+        dfdu = np.zeros(self.nvars)
+        plane_stress.computestressstatederiv(self.conn.T, self.vars.T, self.X.T,
+            self.epsilon, self.C.T, self.u, rho, self.eta.T, dfdu)
+
+        # Compute the adjoint variables
+        psi = self.LU(dfdu)
+
+        # Compute the derivative w.r.t.
+        plane_stress.computestressderiv(self.conn.T, self.vars.T, self.X.T,
+            self.epsilon, self.C.T, self.u, rho, self.eta.T, dfdrho)
+
+        # Compute the total derivative
+        plane_stress.computekmatderiv(self.conn.T, self.vars.T, self.X.T,
+            self.qval, self.C.T, rho, psi, self.u, temp)
+
+        # Compute the remainder of the total derivative
+        dfdrho -= temp
+
+        dksdx = (self.F.transpose()).dot(dfdrho)
+
+        dksdx /= self.ys
+
+        return dksdx
 
     def frequency(self, x):
 
@@ -252,14 +358,18 @@ class PlaneStressAnalysis(om.ExplicitComponent):
     def compute(self, inputs, outputs):
         x = inputs['x']
         outputs['c'] = self.compliance(x[:])
-        outputs['m'] = 0.4*self.total_mass - self.mass(x[:])
+        outputs['m'] = self.mass(x[:])
+        outputs['inertia'] = self.inertia(x[:])
+        outputs['ks_stress'] = self.ks_stress(x[:])
         if self.freqconstr is True:
             outputs['freq'] = self.frequency(x[:])
 
     def compute_partials(self, inputs, partials):
         x = inputs['x']
         partials['c', 'x'] = self.compliance_grad(x[:])
-        partials['m', 'x'] = -self.mass_grad(x[:])
+        partials['m', 'x'] = self.mass_grad(x[:])
+        partials['inertia', 'x'] = self.inertia_grad(x[:])
+        partials['ks_stress', 'x'] = self.ks_stress_grad(x[:])
         if self.freqconstr is True:
             partials['freq', 'x'] = self.frequency_grad(x[:])
 
@@ -289,7 +399,8 @@ class PlaneStressAnalysis(om.ExplicitComponent):
 
         # Create the contour plot
         rho = self.F.dot(x[:])
-        ax.tricontourf(tri_obj, rho, cmap='coolwarm')
+        cntr = ax.tricontourf(tri_obj, rho, cmap='coolwarm')
+        fig.colorbar(cntr, ax=ax)
 
         # Compute compliance
         compliance = self.compliance(x)
@@ -309,3 +420,105 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         else:
             plt.savefig(name+'.png')
             plt.close()
+
+    def rho(self, x):
+        """
+        Compute filtered variable rho out of x
+        """
+
+        # Apply the filter to obtain the filtered values
+        rho = self.F.dot(x)
+
+        return rho
+
+
+# Test gradient implmentation using finite difference
+# With a simple cantilever example
+if __name__ == '__main__':
+
+    print("\nRunning finite difference gradient checks...\n")
+
+    # Define geometry, mesh and boundary conditions
+    nx = 8
+    ny = 8
+    r0 = 1.0/32.0
+    lx = 4.0
+    ly = 1.0
+    forceval = 25.0
+
+    nelems = nx*ny
+    nnodes = (nx+1)*(ny+1)
+
+    conn = np.zeros((nelems, 4), dtype=np.intc)
+    vars = -np.ones((nnodes, 2), dtype=np.intc)
+    X = np.zeros((nnodes, 2))
+    rho = np.ones(nnodes)
+
+    C = np.zeros((3, 3))
+    qval = 5.0
+
+    density = 2700.0 # kg/m^3
+
+    E = 70e3
+    nu = 0.3
+    C[0, 0] = E/(1.0 - nu**2)
+    C[0, 1] = nu*E/(1.0 - nu**2)
+    C[1, 0] = C[0, 1]
+    C[1, 1] = C[0, 0]
+    C[2, 2] = 0.5*E/(1.0 + nu)
+
+    for j in range(ny):
+        for i in range(nx):
+            conn[i + j*nx, 0] = i + (nx+1)*j
+            conn[i + j*nx, 1] = i+1 + (nx+1)*j
+            conn[i + j*nx, 2] = i + (nx+1)*(j+1)
+            conn[i + j*nx, 3] = i+1 + (nx+1)*(j+1)
+
+    nvars = 0
+    for j in range(ny+1):
+        for i in range(nx+1):
+            X[i + j*(nx+1), 0] = lx*i/nx
+            X[i + j*(nx+1), 1] = ly*j/ny
+            if i > 0:
+                vars[i + j*(nx+1), 0] = nvars
+                nvars += 1
+                vars[i + j*(nx+1), 1] = nvars
+                nvars += 1
+
+    force = np.zeros(nvars)
+    i = nx
+    j = 0
+    force[vars[i + j*(nx+1), 1]] = -forceval
+
+    epsilon = 0.3
+    ys = 200.0
+
+    # Create analysis object instance
+    analysis = PlaneStressAnalysis(conn, vars, X, force,
+        r0, qval, C, density, epsilon, ys)
+
+    # We set random material for each element
+    np.random.seed(0)
+    x = np.random.rand(nnodes)
+
+    # compute mass and inertia
+    mass = analysis.mass(x)
+    inertia = analysis.inertia(x)
+
+    # Create openMDAO problem instance
+    prob = om.Problem()
+    indeps = prob.model.add_subsystem('indeps', om.IndepVarComp())
+    indeps.add_output('x', x)
+    prob.model.add_subsystem('topo', analysis)
+    prob.model.connect('indeps.x', 'topo.x')
+    prob.model.add_design_var('indeps.x', lower=1e-3, upper=1.0)
+    prob.model.add_constraint('topo.m', lower=0.0)
+    prob.model.add_constraint('topo.c', lower=0.0)
+    prob.model.add_constraint('topo.inertia', lower=0.0)
+
+    # Execute
+    prob.setup()
+    prob.run_model()
+
+    # Check partials using finite difference
+    prob.check_partials()
