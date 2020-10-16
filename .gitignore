@@ -1,9 +1,5 @@
-*.out
-*.tr
 *.so
 *.mod
 *.npy
-*.png
 __pycache__
-*.pkl
 .vscode
