@@ -10,6 +10,8 @@ p = argparse.ArgumentParser()
 p.add_argument('picklename', metavar='[picklename]', type=str)
 p.add_argument('--optimizer', default='ParOpt',
                     choices=['ParOpt', 'SNOPT', 'IPOPT'])
+p.add_argument('--freq', type=str, default='0.5',
+                    help='lower bound of natural frequency')
 p.add_argument('--mass', type=float, default=0.4,
                     help='upper bound of mass, in fraction of full mass')
 p.add_argument('--max_iter', type=int, default=200,
@@ -35,7 +37,10 @@ x = prob_pkl['x']
 
 # Instantiate analysis class
 qval = 5.0
-analysis = PlaneStressAnalysis(conn, vars, X, force, r0, qval, C)
+density = 2700.0
+lambda0 = (2.0*np.pi*float(args.freq))**2
+analysis = PlaneStressAnalysis(conn, vars, X, force,
+    r0, qval, C, density=density, freqconstr=True, lambda0=lambda0)
 
 # Compute mass for a fully-filled structure
 xfull = np.ones(nnodes)
@@ -51,10 +56,11 @@ prob.model.connect('indeps.x', 'topo.x')
 prob.model.add_design_var('indeps.x', lower=1e-3, upper=1.0)
 prob.model.add_objective('topo.c', scaler=1.0)
 prob.model.add_constraint('topo.m', upper=full_mass*args.mass)
+prob.model.add_constraint('topo.freq', lower=0.0)
 
 # Setup output format
-outputname = 'comp_min_mass_constr-{:s}-{:s}'.format(
-    args.optimizer, prob_name)
+outputname = 'comp_min_massfreq_constr-{:s}-freq-{:s}-{:s}'.format(
+    args.optimizer, args.freq, prob_name)
 
 # Setup optimizer
 if args.optimizer == 'ParOpt':
@@ -71,6 +77,8 @@ if args.optimizer == 'ParOpt':
         'tr_l1_tol': 0.0,
         'tr_linfty_tol': 0.0,
         'tr_adaptive_gamma_update': True,
+        # 'tr_accept_step_strategy': 'filter_method',
+        # 'tr_use_soc': True,
         'tr_max_iterations': args.max_iter,
         'output_file': 'paropt.out',
         'tr_output_file': outputname+'.tr',
