@@ -57,7 +57,7 @@ for line_index in range(datastart_index, dataend_index):
         continue
     elif lines[line_index] == metadata_line:
         continue
-    elif 'SNOPT' in lines[line_index+1]:
+    elif 'SNOPT' in lines[line_index]:
         break
     else:
         data = lines[line_index]
