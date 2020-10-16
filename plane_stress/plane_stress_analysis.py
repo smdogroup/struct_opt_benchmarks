@@ -7,6 +7,7 @@ from scipy.sparse import linalg
 from scipy.spatial import KDTree
 import matplotlib.pylab as plt
 import matplotlib.tri as tri
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 class PlaneStressAnalysis(om.ExplicitComponent):
 
@@ -230,11 +231,11 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         self.stress = self.stress/self.ys
 
         max_stress = np.max(self.stress)
-        self.eta = np.exp(self.ks_parameter*(self.stress - max_stress))
-        eta_sum = np.sum(self.eta)
+        self.etas = np.exp(self.ks_parameter*(self.stress - max_stress))
+        etas_sum = np.sum(self.etas)
 
-        ks = max_stress + np.log(eta_sum)/self.ks_parameter
-        self.eta = self.eta/eta_sum
+        ks = max_stress + np.log(etas_sum)/self.ks_parameter
+        self.etas = self.etas/etas_sum
 
         # Return the compliance
         return ks
@@ -254,14 +255,14 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         # Compute dfdu
         dfdu = np.zeros(self.nvars)
         plane_stress.computestressstatederiv(self.conn.T, self.vars.T, self.X.T,
-            self.epsilon, self.C.T, self.u, rho, self.eta.T, dfdu)
+            self.epsilon, self.C.T, self.u, rho, self.etas.T, dfdu)
 
         # Compute the adjoint variables
         psi = self.LU(dfdu)
 
         # Compute the derivative w.r.t.
         plane_stress.computestressderiv(self.conn.T, self.vars.T, self.X.T,
-            self.epsilon, self.C.T, self.u, rho, self.eta.T, dfdrho)
+            self.epsilon, self.C.T, self.u, rho, self.etas.T, dfdrho)
 
         # Compute the total derivative
         plane_stress.computekmatderiv(self.conn.T, self.vars.T, self.X.T,
@@ -299,11 +300,11 @@ class PlaneStressAnalysis(om.ExplicitComponent):
                                                   which='LM', tol=1e-8)
 
         # Compute the smallest eigenvalue
-        eta = np.exp(-self.ks_parameter*(self.eigvals - np.min(self.eigvals)))
+        etaf = np.exp(-self.ks_parameter*(self.eigvals - np.min(self.eigvals)))
 
-        ksvalue = np.min(self.eigvals) - np.log(np.sum(eta))/self.ks_parameter
+        ksvalue = np.min(self.eigvals) - np.log(np.sum(etaf))/self.ks_parameter
 
-        self.eta = eta/np.sum(eta)
+        self.etaf = etaf/np.sum(etaf)
 
         return ksvalue
 
@@ -320,12 +321,12 @@ class PlaneStressAnalysis(om.ExplicitComponent):
             psi = self.eigvecs[:,i]
             plane_stress.computekmatderiv(self.conn.T, self.vars.T, self.X.T,
                 self.qval, self.C.T, rho, psi.T, psi.T, temp)
-            dfdx += self.eta[i]*temp
+            dfdx += self.etaf[i]*temp
 
             # Compute the derivative of d(eigvec^{T}*M(x)*eigvec)
             plane_stress.computemmatderiv(self.conn.T, self.vars.T, self.X.T,
                 self.density, psi.T, psi.T, temp)
-            dfdx -= self.lambda0*self.eta[i]*temp
+            dfdx -= self.lambda0*self.etaf[i]*temp
 
         dfdx = (self.F.transpose()).dot(dfdx)
 
@@ -373,7 +374,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         if self.freqconstr is True:
             partials['freq', 'x'] = self.frequency_grad(x[:])
 
-    def plot_solution(self, x, savefig=None, name='fig'):
+    def plot_solution(self, x, savefig=False, name='fig'):
         triangles = []
         for i in range(self.conn.shape[0]):
             triangles.append([self.conn[i, 0], self.conn[i, 1], self.conn[i, 2]])
@@ -400,7 +401,12 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         # Create the contour plot
         rho = self.F.dot(x[:])
         cntr = ax.tricontourf(tri_obj, rho, cmap='coolwarm')
-        fig.colorbar(cntr, ax=ax)
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        fig.colorbar(cntr, cax=cax)
+        fig.set_size_inches(6.4,5.0)
+        fig.subplots_adjust(top=0.85)
+        fig.subplots_adjust(bottom=0.05)
 
         # Compute compliance
         compliance = self.compliance(x)
@@ -411,11 +417,11 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         # Compute base frequency
         base_freq = self.base_frequencies(x)[0]
 
-        ax.set_title('compliance: {:.6e}\nmass: {:.6e}, minimal frequency: {:.6e}'.
+        ax.set_title('compliance: {:.2e}\nmass: {:.2e}\nminimal frequency: {:.2e}'.
                       format(compliance, mass, base_freq))
 
         # Plot the figure
-        if savefig is None:
+        if savefig is False:
             plt.show()
         else:
             plt.savefig(name+'.png')
@@ -495,7 +501,7 @@ if __name__ == '__main__':
 
     # Create analysis object instance
     analysis = PlaneStressAnalysis(conn, vars, X, force,
-        r0, qval, C, density, epsilon, ys)
+        r0, qval, C, density, epsilon, ys, freqconstr=True)
 
     # We set random material for each element
     np.random.seed(0)
@@ -515,6 +521,7 @@ if __name__ == '__main__':
     prob.model.add_constraint('topo.m', lower=0.0)
     prob.model.add_constraint('topo.c', lower=0.0)
     prob.model.add_constraint('topo.inertia', lower=0.0)
+    prob.model.add_constraint('topo.freq', lower=0.0)
 
     # Execute
     prob.setup()
