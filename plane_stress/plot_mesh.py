@@ -27,13 +27,9 @@ r0 = prob_pkl['r0']
 
 # Loop over all elememts to plot mesh edges
 for i in range(nelems):
-    order = [0,1,3,2,0]
-    for k in range(4):
-        pt1 = X[conn[i, order[k  ]]]
-        pt2 = X[conn[i, order[k+1]]]
-
-        plt.plot([pt1[0], pt2[0]], [pt1[1], pt2[1]],'k', lw=0.5)
-
+    x = [X[conn[i, j], 0] for j in [0,1,3,2]]
+    y = [X[conn[i, j], 1] for j in [0,1,3,2]]
+    plt.fill(x, y, edgecolor='black', fill=False, lw=0.5)
 
 # Compute the size of shapes
 xmax, ymax = np.amax(X, axis=0)
