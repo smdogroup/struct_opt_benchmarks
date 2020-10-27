@@ -12,10 +12,21 @@ p.add_argument('--optimizer', default='ParOpt',
                     choices=['ParOpt', 'SNOPT', 'IPOPT'])
 p.add_argument('--freq', type=str, default='0.5',
                     help='lower bound of natural frequency')
+p.add_argument('--sigma', type=float, default=-100.0,
+                    help='sigma value for eigsh')
+p.add_argument('--density', type=float, default=2700.0,
+                    help='material density, units: kg/m^3')
+p.add_argument('--qval', type=float, default=5.0,
+                    help='qval for stiffness penalty')
 p.add_argument('--mass', type=float, default=0.4,
                     help='upper bound of mass, in fraction of full mass')
 p.add_argument('--max_iter', type=int, default=200,
                     help='maximum major iteration')
+p.add_argument('--ParOpt_use_adaptive_gamma_update', action='store_true')
+p.add_argument('--ParOpt_use_filter', action='store_true')
+p.add_argument('--ParOpt_use_soc', action='store_true')
+p.add_argument('--ParOpt_filter_sufficient_reduction', action='store_true')
+p.add_argument('--info', type=str, default='')
 args = p.parse_args()
 
 # Load in pickle file
@@ -36,11 +47,15 @@ r0 = prob_pkl['r0']
 x = prob_pkl['x']
 
 # Instantiate analysis class
-qval = 5.0
-density = 2700.0
+qval = args.qval
+density = args.density
+ks = 100.0
+num_eigs = 8
 lambda0 = (2.0*np.pi*float(args.freq))**2
 analysis = PlaneStressAnalysis(conn, vars, X, force,
-    r0, qval, C, density=density, freqconstr=True, lambda0=lambda0)
+    r0, qval, C, density=density, freqconstr=True,
+    lambda0=lambda0, ks_parameter=ks, num_eigs=num_eigs,
+    eigshsigma=args.sigma)
 
 # Compute mass for a fully-filled structure
 xfull = np.ones(nnodes)
@@ -49,6 +64,9 @@ full_mass = analysis.mass(xfull)
 # Form openMDAO problem
 prob = om.Problem()
 x = 0.95*np.ones(nnodes)
+# x = 0.5*np.ones(nnodes)
+# np.random.seed(0)
+# x = np.random.rand(nnodes)
 indeps = prob.model.add_subsystem('indeps', om.IndepVarComp())
 indeps.add_output('x', x)
 prob.model.add_subsystem('topo', analysis)
@@ -59,15 +77,29 @@ prob.model.add_constraint('topo.m', upper=full_mass*args.mass)
 prob.model.add_constraint('topo.freq', lower=0.0)
 
 # Setup output format
-outputname = 'comp_min_massfreq_constr-{:s}-freq-{:s}-{:s}'.format(
-    args.optimizer, args.freq, prob_name)
+extra = ''
+if args.optimizer == 'ParOpt':
+    if args.ParOpt_use_filter:
+        extra += 'filter'
+    if args.ParOpt_use_soc:
+        extra += 'soc'
+info = ''
+info += args.info
+if info != '':
+    info = '-' + info
+outputname = 'comp_min_massfreq_constr-{:s}-freq-{:s}-{:s}{:s}'.format(
+    args.optimizer+extra, args.freq, prob_name, info)
 
 # Setup optimizer
 if args.optimizer == 'ParOpt':
+    if args.ParOpt_use_filter:
+        tr_accept_step_strategy = 'filter_method'
+    else:
+        tr_accept_step_strategy = 'penalty_method'
     prob.driver = ParOptDriver()
     options = {
         'algorithm': 'tr',
-        'output_level':1,
+        'output_level':0,
         'norm_type': 'l1',
         'tr_init_size': 0.05,
         'tr_min_size': 0.001,
@@ -76,9 +108,10 @@ if args.optimizer == 'ParOpt':
         'tr_infeas_tol': 1e-6,
         'tr_l1_tol': 0.0,
         'tr_linfty_tol': 0.0,
-        'tr_adaptive_gamma_update': True,
-        # 'tr_accept_step_strategy': 'filter_method',
-        # 'tr_use_soc': True,
+        'tr_adaptive_gamma_update': args.ParOpt_use_adaptive_gamma_update,
+        'tr_accept_step_strategy': tr_accept_step_strategy,
+        'filter_sufficient_reduction': args.ParOpt_filter_sufficient_reduction,
+        'tr_use_soc': args.ParOpt_use_soc,
         'tr_max_iterations': args.max_iter,
         'output_file': 'paropt.out',
         'tr_output_file': outputname+'.tr',
@@ -86,6 +119,7 @@ if args.optimizer == 'ParOpt':
         'qn_subspace_size': 2,
         'qn_type': 'bfgs',
         'qn_diag_type': 'yts_over_sts',
+        # 'qn_diag_type': 'yty_over_yts',
         'abs_res_tol': 1e-8,
         'starting_point_strategy': 'affine_step',
         'barrier_strategy': 'mehrotra_predictor_corrector',
@@ -101,6 +135,7 @@ elif args.optimizer == 'IPOPT':
     prob.driver.options['optimizer'] = 'IPOPT'
     prob.driver.opt_settings['max_iter'] = args.max_iter
     prob.driver.opt_settings['output_file'] = outputname+'.out'
+    # prob.driver.opt_settings['file_print_level'] = 6
 
 elif args.optimizer == 'SNOPT':
     prob.driver = om.pyOptSparseDriver()

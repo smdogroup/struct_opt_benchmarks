@@ -12,8 +12,21 @@ p.add_argument('--optimizer', default='ParOpt',
                     choices=['ParOpt', 'SNOPT', 'IPOPT'])
 p.add_argument('--mass', type=float, default=0.4,
                     help='upper bound of mass, in fraction of full mass')
+p.add_argument('--density', type=float, default=2700.0,
+                    help='material density, units: kg/m^3')
+p.add_argument('--sigma', type=float, default=-100.0,
+                    help='sigma value for eigsh')
+p.add_argument('--qval', type=float, default=5.0,
+                    help='qval for stiffness penalty')
 p.add_argument('--max_iter', type=int, default=200,
                     help='maximum major iteration')
+p.add_argument('--ParOpt_use_filter', action='store_true')
+p.add_argument('--ParOpt_use_soc', action='store_true')
+p.add_argument('--qn_diag_type', default='yts_over_sts',
+                    choices=['yty_over_yts', 'yts_over_sts',
+                    'inner_yty_over_yts', 'inner_yts_over_sts'])
+p.add_argument('--ParOpt_filter_sufficient_reduction', action='store_true')
+p.add_argument('--info', type=str, default='')
 args = p.parse_args()
 
 # Load in pickle file
@@ -34,8 +47,10 @@ r0 = prob_pkl['r0']
 x = prob_pkl['x']
 
 # Instantiate analysis class
-qval = 5.0
-analysis = PlaneStressAnalysis(conn, vars, X, force, r0, qval, C)
+qval = args.qval
+density = args.density
+analysis = PlaneStressAnalysis(conn, vars, X, force, r0, qval, C,
+    density=density, freqconstr=False, eigshsigma=args.sigma)
 
 # Compute mass for a fully-filled structure
 xfull = np.ones(nnodes)
@@ -53,31 +68,48 @@ prob.model.add_objective('topo.c', scaler=1.0)
 prob.model.add_constraint('topo.m', upper=full_mass*args.mass)
 
 # Setup output format
-outputname = 'comp_min_mass_constr-{:s}-{:s}'.format(
-    args.optimizer, prob_name)
+extra = ''
+if args.optimizer == 'ParOpt':
+    if args.ParOpt_use_filter:
+        extra += 'filter'
+    if args.ParOpt_use_soc:
+        extra += 'soc'
+info = ''
+info += args.info
+if info != '':
+    info = '-' + info
+outputname = 'comp_min_mass_constr-{:s}-{:s}{:s}'.format(
+    args.optimizer+extra, prob_name, info)
 
 # Setup optimizer
 if args.optimizer == 'ParOpt':
+    if args.ParOpt_use_filter:
+        tr_accept_step_strategy = 'filter_method'
+    else:
+        tr_accept_step_strategy = 'penalty_method'
     prob.driver = ParOptDriver()
     options = {
         'algorithm': 'tr',
-        'output_level':1,
+        'output_level':0,
         'norm_type': 'l1',
         'tr_init_size': 0.05,
-        'tr_min_size': 0.001,
+        'tr_min_size': 1e-3,
         'tr_max_size': 10.0,
         'tr_eta': 0.25,
         'tr_infeas_tol': 1e-6,
         'tr_l1_tol': 0.0,
         'tr_linfty_tol': 0.0,
-        'tr_adaptive_gamma_update': True,
+        'tr_adaptive_gamma_update': False,
+        'tr_accept_step_strategy': tr_accept_step_strategy,
+        'filter_sufficient_reduction': args.ParOpt_filter_sufficient_reduction,
+        'tr_use_soc': args.ParOpt_use_soc,
         'tr_max_iterations': args.max_iter,
         'output_file': 'paropt.out',
         'tr_output_file': outputname+'.tr',
         'penalty_gamma': 50.0,
         'qn_subspace_size': 2,
         'qn_type': 'bfgs',
-        'qn_diag_type': 'yts_over_sts',
+        'qn_diag_type': args.qn_diag_type,
         'abs_res_tol': 1e-8,
         'starting_point_strategy': 'affine_step',
         'barrier_strategy': 'mehrotra_predictor_corrector',

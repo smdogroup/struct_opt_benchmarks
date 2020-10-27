@@ -34,6 +34,14 @@ if x is None:
 
 # Instantiate analysis because we need to compute filtered design
 qval = 5.0
-analysis = PlaneStressAnalysis(conn, vars, X, force, r0, qval, C)
+density = 2700.0
+freq= 0.6
+lambda0 = (2.0*np.pi*freq)**2
+ks = 100.0
+num_eigs = 8
+sigma = -100.0
+analysis = PlaneStressAnalysis(conn, vars, X, force, r0, qval, C,
+    density=density, lambda0=lambda0, ks_parameter=ks, num_eigs=num_eigs,
+    eigshsigma=sigma)
 
 analysis.plot_solution(x)

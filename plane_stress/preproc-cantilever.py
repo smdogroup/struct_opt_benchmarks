@@ -24,9 +24,6 @@ import pickle
 import argparse
 
 # Set up parser
-
-# prob_name
-prob_name = 'cantilever'
 p = argparse.ArgumentParser()
 p.add_argument('--nx', type=int, default=64)
 p.add_argument('--ny', type=int, default=64)
@@ -41,6 +38,9 @@ lx = args.lx
 ly = args.ly
 nelems = nx*ny
 nnodes = (nx+1)*(ny+1)
+
+# prob_name
+prob_name = 'cantilever-nx{:d}-ny{:d}-lx{:.1f}-ly{:.1f}'.format(nx, ny, lx, ly)
 
 # r0
 r0 = 2*np.max([lx/nx, ly/ny])
@@ -97,7 +97,6 @@ prob_pkl['force'] = force
 prob_pkl['r0'] = r0
 prob_pkl['x'] = None
 
-outname = prob_pkl['prob_name']+'-nx{:d}-' \
-    'ny{:d}-lx{:.1f}-ly{:.1f}.pkl'.format(nx, ny, lx, ly)
+outname = prob_pkl['prob_name']+'.pkl'
 with open(outname, 'wb') as pklfile:
     pickle.dump(prob_pkl, pklfile)

@@ -13,7 +13,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
 
     def __init__(self, conn, vars, X, force, r0, qval, C, density=1.0,
                  epsilon=1.0, ys=1.0, ks_parameter=100.0,
-                 freqconstr=False, lambda0=0.0):
+                 freqconstr=False, lambda0=0.0, num_eigs=8, eigshsigma=0.0):
         super().__init__()
 
         # Save the data
@@ -29,7 +29,8 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         self.freqconstr = freqconstr
         self.lambda0 = lambda0
         self.ks_parameter = ks_parameter
-        self.num_eigs = 8
+        self.num_eigs = num_eigs
+        self.eigshsigma = eigshsigma
 
         # Set the number of variables and the number of nodes
         self.nvars = np.max(self.vars) + 1
@@ -296,7 +297,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
                                  shape=(self.nvars, self.nvars))
 
         # Find the smallest eigenvalues close to zero that have the smallest real part
-        self.eigvals, self.eigvecs = linalg.eigsh(Amat, k=self.num_eigs, sigma=0.0,
+        self.eigvals, self.eigvecs = linalg.eigsh(Amat, k=self.num_eigs, sigma=self.eigshsigma,
                                                   which='LM', tol=1e-8)
 
         # Compute the smallest eigenvalue
@@ -305,6 +306,9 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         ksvalue = np.min(self.eigvals) - np.log(np.sum(etaf))/self.ks_parameter
 
         self.etaf = etaf/np.sum(etaf)
+
+        # print("ks approx. min eigval: {:.2e}, real min eigval: {:.2e}".format(
+        #     ksvalue, np.min(self.eigvals)))
 
         return ksvalue
 
@@ -350,9 +354,12 @@ class PlaneStressAnalysis(om.ExplicitComponent):
                                  shape=(self.nvars, self.nvars))
 
         # Find the smallest eigenvalues close to zero that have the smallest real part
-        self.eigvals, self.eigvecs = linalg.eigsh(Kmat, k=self.num_eigs, M=Mmat,
+        # Note that we set sigma = 0.0 here because for a physically-realistic system,
+        # eigenvalues for generalized system (K, M) should be always positive
+        self.eigvals2, self.eigvecs2 = linalg.eigsh(Kmat, k=self.num_eigs, M=Mmat,
                                                   sigma=0.0, which='LM', tol=1e-8)
-        frequencies = np.sqrt(self.eigvals)/(np.pi*2)
+        frequencies = np.sqrt(self.eigvals2)/(np.pi*2)
+        # print("base frequency: {:.2e}".format(frequencies[0]))
 
         return frequencies
 
@@ -419,6 +426,12 @@ class PlaneStressAnalysis(om.ExplicitComponent):
 
         ax.set_title('compliance: {:.2e}\nmass: {:.2e}\nminimal frequency: {:.2e}'.
                       format(compliance, mass, base_freq))
+
+        # Compute original eigenvalues
+        eig = self.frequency(x)
+
+        print("sigma: {:.2e}, ks_eigs(A): {:.2e}, minimal freq: {:.2e}".format(
+            self.eigshsigma, eig, base_freq))
 
         # Plot the figure
         if savefig is False:
