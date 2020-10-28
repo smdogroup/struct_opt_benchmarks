@@ -17,13 +17,16 @@ with open(args.filename, 'rb') as pklfile:
 prob_name = prob_pkl['prob_name']
 nelems = prob_pkl['nelems']
 nnodes = prob_pkl['nnodes']
-nvars = prob_pkl['nvars']
+ndof = prob_pkl['ndof']
 C = prob_pkl['C']
 conn = prob_pkl['conn']
 X = prob_pkl['X']
-vars = prob_pkl['vars']
+dof = prob_pkl['dof']
 force = prob_pkl['force']
 r0 = prob_pkl['r0']
+density = prob_pkl['density']
+qval = prob_pkl['qval']
+x = prob_pkl['x']
 
 # Loop over all elememts to plot mesh edges
 for i in range(nelems):
@@ -39,20 +42,20 @@ shape_size = domain_size * 0.15
 f_size = np.max(np.abs(force))
 
 # Plot forces
-var_indices = np.nonzero(force)[0]  # because force is 1D array, we only need 1st index
-for var_index in var_indices:
-    node_index, i = np.where(vars==var_index)
+dof_indices = np.nonzero(force)[0]  # because force is 1D array, we only need 1st index
+for dof_index in dof_indices:
+    node_index, i = np.where(dof==dof_index)
     node_index = node_index[0]
     i = i[0]
     x = X[node_index, 0]
     y = X[node_index, 1]
-    h = force[var_index]/f_size*shape_size
+    h = force[dof_index]/f_size*shape_size
     arrow = Arrow(x-h+i*h, y-i*h, h-i*h, i*h, edgecolor='red',
         width=shape_size*0.5, fill=None, lw=1.0)
     plt.gca().add_patch(arrow)
 
 # Plot boundary condition
-nodes = np.where(vars == -1)
+nodes = np.where(dof == -1)
 nodes = np.array(nodes).transpose()
 for node in nodes:
     node_index = node[0]
