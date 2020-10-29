@@ -1,7 +1,7 @@
 fname = "generate_pkls.sh"
 
 lxs = [1.0, 2.0, 3.0]
-nys = [40, 80, 120]
+nys = [30, 60, 90]
 
 with open(fname, 'w') as f:
     for i in range(len(lxs)):

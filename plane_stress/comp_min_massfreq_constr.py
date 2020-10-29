@@ -5,6 +5,7 @@ import argparse
 from paropt.paropt_driver import ParOptDriver
 from plane_stress_analysis import PlaneStressAnalysis
 import os
+import timeit
 
 # Set up parameters that we want to vary
 p = argparse.ArgumentParser()
@@ -163,8 +164,10 @@ elif args.optimizer == 'SNOPT':
     prob.driver.opt_settings['Minor print level'] = 0
 
 #  Run optimization
+t_start = timeit.default_timer()
 prob.setup()
 prob.run_driver()
+t_end = timeit.default_timer()
 
 # Get design
 x_opt = prob.get_val('indeps.x')
@@ -173,6 +176,7 @@ analysis.plot_solution(x_opt, savefig=True, name=outputname)
 # save result to solution pickle file
 prob_pkl['x'] = x_opt
 prob_pkl['opt_settings'] = opt_settings
+prob_pkl['opt_time'] = '{:.2e} s'.format(t_end - t_start)
 picklename = outputname+'.pkl'
 with open(picklename, 'wb') as pklfile:
     pickle.dump(prob_pkl, pklfile)

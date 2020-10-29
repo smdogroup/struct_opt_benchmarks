@@ -47,7 +47,7 @@ nnodes = (nx+1)*(ny+1)
 prob_name = 'cantilever-nx{:d}-ny{:d}-lx{:.1f}-ly{:.1f}'.format(nx, ny, lx, ly)
 
 # r0
-r0 = 1.0/40.0
+r0 = 1.0/30.0
 
 # density
 density = 2700.0

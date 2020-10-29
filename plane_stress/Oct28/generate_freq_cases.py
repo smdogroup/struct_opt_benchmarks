@@ -1,6 +1,6 @@
 import os
 
-fname = "run_freq_cases.sh"
+fname = "freq_cases.sh"
 
 pkls = os.listdir('pkls')
 methods = [
