@@ -4,6 +4,7 @@ import pickle
 import argparse
 from paropt.paropt_driver import ParOptDriver
 from plane_stress_analysis import PlaneStressAnalysis
+import os
 
 # Set up parameters that we want to vary
 p = argparse.ArgumentParser()
@@ -22,6 +23,10 @@ p.add_argument('--ParOpt_use_soc', action='store_true')
 p.add_argument('--info', type=str, default='')
 p.add_argument('--outdir', type=str, default='')
 args = p.parse_args()
+
+# create directory if outdir doesn't exist
+if not os.path.isdir(args.outdir):
+    os.mkdir(args.outdir)
 
 # Set up constants that we want to fix
 eigshsigma = -100.0  # sigma for eigsh's shift-invert mode
@@ -124,7 +129,7 @@ if args.optimizer == 'ParOpt':
         'filter_sufficient_reduction': True,
         'tr_use_soc': args.ParOpt_use_soc,
         'tr_max_iterations': args.max_iter,
-        # 'output_file': outputname+'.out',
+        'output_file': outputname+'.out',
         'tr_output_file': outputname+'.tr',
         'penalty_gamma': 50.0,
         'qn_subspace_size': 2,
@@ -153,6 +158,7 @@ elif args.optimizer == 'SNOPT':
     prob.driver.opt_settings['Iterations limit'] = 9999999999999
     prob.driver.opt_settings['Major iterations limit'] = args.max_iter
     prob.driver.opt_settings['Summary file'] = outputname+'.out'
+    prob.driver.opt_settings['Print file'] = outputname+'_print.out'
     prob.driver.opt_settings['Major print level'] = 1
     prob.driver.opt_settings['Minor print level'] = 0
 

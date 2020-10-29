@@ -4,6 +4,7 @@ import pickle
 import argparse
 from paropt.paropt_driver import ParOptDriver
 from plane_stress_analysis import PlaneStressAnalysis
+import os
 
 # Set up parameters that we want to vary
 p = argparse.ArgumentParser()
@@ -20,6 +21,10 @@ p.add_argument('--ParOpt_use_soc', action='store_true')
 p.add_argument('--info', type=str, default='')
 p.add_argument('--outdir', type=str, default='')
 args = p.parse_args()
+
+# create directory if outdir doesn't exist
+if not os.path.isdir(args.outdir):
+    os.mkdir(args.outdir)
 
 # Set up constants that we want to fix
 eigshsigma = -100.0  # sigma for eigsh's shift-invert mode
