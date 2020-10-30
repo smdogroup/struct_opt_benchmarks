@@ -16,6 +16,7 @@ p.add_argument('--mass', type=float, default=0.4, choices=[0.3, 0.4, 0.5])
 p.add_argument('--AR', type=int, default=2, choices=[1, 2, 3])
 p.add_argument('--ny', type=int, default=60, choices=[30, 60, 90])
 p.add_argument('--save', action='store_true')
+p.add_argument('--dpi', type=int, default=600)
 args = p.parse_args()
 
 base_freqs = [0.382, 0.176, 0.0959]
@@ -28,7 +29,7 @@ methods = ['ParOpt', 'ParOptadapt', 'ParOptfilter', 'ParOptfiltersoc', 'IPOPT', 
 pngs = [ ntpath.basename(name) for name in glob.glob("{:s}/*.png".format(args.datafolder))]
 
 # Create a figure
-plt.figure(figsize=(6,8), dpi=300)
+plt.figure(dpi=args.dpi)
 
 # Create a grid
 grid = gridspec.GridSpec(nrows=7, ncols=7)
@@ -53,39 +54,46 @@ elif args.sweep == 'AR':
 elif args.sweep == 'meshsize':
     ny = nys
 
+label = 0
 for row in range(3):
     for col in range(6):
         fname = 'comp_min_massfreq_constr-{:s}-mass-{:.3f}-freq-{:.3f}-cantilever-nx{:d}-ny{:d}-lx{:.1f}-ly{:.1f}'.format(
                 methods[col], mass[row], freq[row], nx[row], ny[row], lx[row], ly)
 
         if fname+'.png' in pngs:
-            ax = plt.subplot(grid[2*row+1, col+1])
+            print('found topo')
+            ax = plt.subplot(grid[2*row+1, col+1], label=label)
             ax.axis('off')
             img = mpimg.imread('{:s}/{:s}.png'.format(args.datafolder, fname))
             ax.imshow(img)
+            label += 1
 
         if fname+'-history.png' in pngs:
-            ax = plt.subplot(grid[2*row+2, col+1])
+            print('found history')
+            ax = plt.subplot(grid[2*row+2, col+1], label=label)
             ax.axis('off')
             img = mpimg.imread('{:s}/{:s}-history.png'.format(args.datafolder, fname))
             ax.imshow(img)
+            label += 1
 
 # Print table head
 for col in range(6):
-    ax = plt.subplot(grid[0, col+1])
+    ax = plt.subplot(grid[0, col+1], label=label)
     ax.axis('off')
-    ax.text(0,0,methods[col], fontsize=5)
+    ax.text(0,0,methods[col], fontsize=6)
+    label += 1
 
 for row in range(3):
-    ax = plt.subplot(grid[2*row+1, 0])
+    ax = plt.subplot(grid[2*row+1, 0], label=label)
     ax.axis('off')
-    ax.text(0,0.3, 'mass  = {:.3f}'.format(mass[row]),fontsize=5)
-    ax.text(0,0.1, 'freq  = {:.3f}'.format(freq[row]),fontsize=5)
-    ax.text(0,-0.1,'AR    = {:d}'.format(AR[row]),fontsize=5)
-    ax.text(0,-0.3,'ny    = {:d}'.format(ny[row]),fontsize=5)
+    ax.text(0,0.45,'mass  = {:.3f}'.format(mass[row]),fontsize=6)
+    ax.text(0,0.3,'freq  = {:.3f}'.format(freq[row]),fontsize=6)
+    ax.text(0,0.15,'AR    = {:d}'.format(AR[row]),fontsize=6)
+    ax.text(0,0.0,'ny    = {:d}'.format(ny[row]),fontsize=6)
+    label += 1
 
 if (args.save):
     plt.savefig('sweep-{:s}-mass-{:.3f}-freq-{:.3f}-AR-{:d}-ny{:d}.png'.format(
-        args.sweep, args.mass, args.freq, args.AR, args.ny))
+        args.sweep, args.mass, args.freqratio, args.AR, args.ny))
 else:
     plt.show()
