@@ -3,3 +3,9 @@
 *.npy
 __pycache__
 .vscode
+*.pkl
+*.sh
+*.png
+*.out
+*.tr
+*.pbs
