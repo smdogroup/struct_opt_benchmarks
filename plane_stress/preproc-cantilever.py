@@ -24,15 +24,21 @@ prob_pkl: dict
 import numpy as np
 import pickle
 import argparse
+import os
 
 # Set up parser
 p = argparse.ArgumentParser()
-p.add_argument('--nx', type=int, default=20)
-p.add_argument('--ny', type=int, default=20)
+p.add_argument('--nx', type=int, default=64)
+p.add_argument('--ny', type=int, default=64)
 p.add_argument('--lx', type=float, default=1.0)
 p.add_argument('--ly', type=float, default=1.0)
+p.add_argument('--qval', type=float, default=5.0)
+p.add_argument('--nr0', type=int, default=32, 
+        help='r0 = ly divided by nr0')
 p.add_argument('--outdir', type=str, default='',
     help='directory for pkl output')
+p.add_argument('--type', type=str, default='cantilever',
+        choices=['cantilever', 'mitchell'])
 args = p.parse_args()
 
 # nelems and nnodes
@@ -44,16 +50,19 @@ nelems = nx*ny
 nnodes = (nx+1)*(ny+1)
 
 # prob_name
-prob_name = 'cantilever-nx{:d}-ny{:d}-lx{:.1f}-ly{:.1f}'.format(nx, ny, lx, ly)
+prob_type = 'cantilever'
+if args.type == 'mitchell':
+    prob_type = prob_type + 'm'
+prob_name = '{:s}-nx{:d}-ny{:d}-lx{:.1f}-ly{:.1f}'.format(prob_type, nx, ny, lx, ly)
 
 # r0
-r0 = 1.0/30.0
+r0 = ly / args.nr0
 
 # density
 density = 2700.0
 
 # qval
-qval = 5.0
+qval = args.qval
 
 # C
 C = np.zeros((3, 3))
@@ -89,9 +98,21 @@ for j in range(ny+1):
 # force
 forceval = 25.0
 force = np.zeros(ndof)
-i = nx
-j = 0
-force[dof[i + j*(nx+1), 1]] = -forceval
+if args.type == 'cantilever':
+    i = nx
+    j = 0
+    force[dof[i + j*(nx+1), 1]] = -forceval
+else:
+    if ny % 2 == 0:
+        i = nx
+        j = ny // 2
+        force[dof[i + j*(nx+1), 1]] = -forceval
+    else:
+        i = nx
+        j = ny // 2
+        force[dof[i + j*(nx+1), 1]] = -forceval / 2
+        j = ny // 2 + 1
+        force[dof[i + j*(nx+1), 1]] = -forceval / 2
 
 # Generate pickle file
 prob_pkl = dict()
@@ -112,6 +133,10 @@ prob_pkl['opt_settings'] = None
 
 outname = prob_pkl['prob_name']+'.pkl'
 if args.outdir != '':
+    try:
+        os.mkdir(args.outdir)
+    except:
+        pass
     outname = args.outdir + '/' + outname
 with open(outname, 'wb') as pklfile:
     pickle.dump(prob_pkl, pklfile)
