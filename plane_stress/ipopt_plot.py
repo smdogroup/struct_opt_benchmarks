@@ -3,10 +3,12 @@ import matplotlib.pylab as plt
 import numpy as np
 import argparse
 import re
+import os
 
 p = argparse.ArgumentParser('Plot values from an IPOPT output file')
 p.add_argument('filename', metavar='IPOPT.out', type=str,
                help='IPOPT output file name')
+p.add_argument('--save', action='store_true')
 args = p.parse_args()
 
 colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
@@ -93,5 +95,10 @@ ax2.legend(lns, labs, loc='upper right', framealpha=0.2)
 
 # Plot
 plt.title(args.filename)
-plt.show()
+if (args.save):
+    fname = os.path.splitext(args.filename)[0] # Delete suffix
+    fname += '-history'
+    plt.savefig(fname+'.png')
+else:
+    plt.show()
 

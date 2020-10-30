@@ -4,6 +4,7 @@ import numpy as np
 import argparse
 import re
 import warnings
+import os
 
 # Monkeypatch warning so it doesn't print source code
 def warning_on_one_line(message, category, filename,
@@ -14,6 +15,7 @@ warnings.formatwarning = warning_on_one_line
 p = argparse.ArgumentParser('Plot values from an SNOPT output file')
 p.add_argument('filename', metavar='SNOPT.out', type=str,
                help='SNOPT summary output file name')
+p.add_argument('--save', action='store_true')
 args = p.parse_args()
 
 colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
@@ -68,50 +70,58 @@ for line_index in range(datastart_index, dataend_index):
             major.append(re.findall(intPattern, data[0:6])[0])
         except IndexError:
             major.append(major[-1])
-            warnings.warn('Missing major iteration number found ' \
-                'in line {:d}'.format(line_index+1), RuntimeWarning)
+            if not args.save:
+                warnings.warn('Missing major iteration number found ' \
+                    'in line {:d}'.format(line_index+1), RuntimeWarning)
         try:
             step.append(re.findall(sciPattern, data[13:22])[0])
         except IndexError:
             step.append(step[-1])
-            warnings.warn('Missing entry \'Step\' found in major ' \
-                'iteration {:d}'.format(int(major[-1])), RuntimeWarning)
+            if not args.save:
+                warnings.warn('Missing entry \'Step\' found in major ' \
+                    'iteration {:d}'.format(int(major[-1])), RuntimeWarning)
         try:
             ncon.append(re.findall(intPattern, data[22:29])[0])
         except IndexError:
             ncon.append(ncon[-1])
-            warnings.warn('Missing entry \'nCon\' found in major ' \
-                'iteration {:d}'.format(int(major[-1])), RuntimeWarning)
+            if not args.save:
+                warnings.warn('Missing entry \'nCon\' found in major ' \
+                    'iteration {:d}'.format(int(major[-1])), RuntimeWarning)
         try:
             feasible.append(re.findall(sciPattern, data[29:39])[0])
         except IndexError:
             feasible.append(feasible[-1])
-            warnings.warn('Missing entry \'Feasible\' found in major ' \
-                'iteration {:d}'.format(int(major[-1])), RuntimeWarning)
+            if not args.save:
+                warnings.warn('Missing entry \'Feasible\' found in major ' \
+                    'iteration {:d}'.format(int(major[-1])), RuntimeWarning)
         try:
             optimal.append(re.findall(sciPattern, data[39:47])[0])
         except IndexError:
             optimal.append(optimal[-1])
-            warnings.warn('Missing entry \'Optimal\' found in major ' \
-                'iteration {:d}'.format(int(major[-1])), RuntimeWarning)
+            if not args.save:
+                warnings.warn('Missing entry \'Optimal\' found in major ' \
+                    'iteration {:d}'.format(int(major[-1])), RuntimeWarning)
         try:
             meritfun.append(re.findall(sciPattern, data[47:62])[0])
         except IndexError:
             meritfun.append(meritfun[-1])
-            warnings.warn('Missing entry \'MeritFun\' found in major ' \
-                'iteration {:d}'.format(int(major[-1])), RuntimeWarning)
+            if not args.save:
+                warnings.warn('Missing entry \'MeritFun\' found in major ' \
+                    'iteration {:d}'.format(int(major[-1])), RuntimeWarning)
         try:
             ns.append(re.findall(intPattern, data[62:69])[0])
         except IndexError:
             ns.append(ns[-1])
-            warnings.warn('Missing entry \'nS\' found in major ' \
-                'iteration {:d}'.format(int(major[-1])), RuntimeWarning)
+            if not args.save:
+                warnings.warn('Missing entry \'nS\' found in major ' \
+                    'iteration {:d}'.format(int(major[-1])), RuntimeWarning)
         try:
             penalty.append(re.findall(sciPattern, data[69:77])[0])
         except IndexError:
             penalty.append(penalty[-1])
-            warnings.warn('Missing entry \'Penalty\' found in major ' \
-                'iteration {:d}'.format(int(major[-1])), RuntimeWarning)
+            if not args.save:
+                warnings.warn('Missing entry \'Penalty\' found in major ' \
+                    'iteration {:d}'.format(int(major[-1])), RuntimeWarning)
 
 # Store data into numpy arrays
 major    = np.array(major).astype(np.int)
@@ -146,4 +156,9 @@ ax2.legend(lns, labs, loc='upper right', framealpha=0.2)
 
 # Plot
 plt.title(args.filename)
-plt.show()
+if (args.save):
+    fname = os.path.splitext(args.filename)[0] # Delete suffix
+    fname += '-history'
+    plt.savefig(fname+'.png')
+else:
+    plt.show()
