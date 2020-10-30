@@ -26,9 +26,11 @@ p.add_argument('--outdir', type=str, default='')
 args = p.parse_args()
 
 # create directory if outdir doesn't exist
-if args.outdir != '':
-    if not os.path.isdir(args.outdir):
+if not os.path.isdir(args.outdir):
+    try:
         os.mkdir(args.outdir)
+    except:
+        pass
 
 # Set up constants that we want to fix
 eigshsigma = -100.0  # sigma for eigsh's shift-invert mode
