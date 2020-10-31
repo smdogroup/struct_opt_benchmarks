@@ -13,7 +13,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
 
     def __init__(self, conn, vars, X, force, r0, qval, C, density=1.0,
                  epsilon=1.0, ys=1.0, ks_parameter=100.0,
-                 freqconstr=False, lambda0=0.0, num_eigs=8, eigshsigma=0.0):
+                 freqconstr=False, lambda0=0.0, num_eigs=8, eigshsigma=-100.0):
         super().__init__()
 
         # Save the data

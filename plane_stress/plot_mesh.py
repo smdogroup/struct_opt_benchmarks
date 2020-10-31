@@ -1,3 +1,7 @@
+'''
+This script can plot 2D meshes with quadrilateral elements
+'''
+
 import matplotlib.pyplot as plt
 from matplotlib.patches import Arrow, Polygon
 import numpy as np
