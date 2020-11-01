@@ -26,6 +26,7 @@ import numpy as np
 from mpi4py import MPI
 import pickle
 import argparse
+import os
 
 # Set up parser
 p = argparse.ArgumentParser()
@@ -322,11 +323,6 @@ prob_pkl['qval'] = qval
 prob_pkl['x'] = None
 prob_pkl['opt_settings'] = None
 
-outname = prob_pkl['prob_name'] + '.pkl'
-with open(outname, 'wb') as pklfile:
-    pickle.dump(prob_pkl, pklfile)
-
-
 outname = prob_pkl['prob_name']+'.pkl'
 if args.outdir != '':
     try:
@@ -334,5 +330,6 @@ if args.outdir != '':
     except:
         pass
     outname = args.outdir + '/' + outname
+
 with open(outname, 'wb') as pklfile:
     pickle.dump(prob_pkl, pklfile)
