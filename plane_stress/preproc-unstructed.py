@@ -39,9 +39,15 @@ p.add_argument('--nr0', type=int, default=32,
 p.add_argument('--use_hole', action='store_true',
         help='put a circular hole in mesh')
 p.add_argument('--type', type=str, default='cantilever',
-        choices=['cantilever', 'michell', 'michell-distri'])
+        choices=['cantilever', 'michell', 'michelldistri', 'MBB'])
 p.add_argument('--savevtk', action='store_true')
+p.add_argument('--outdir', type=str, default='',
+    help='directory for pkl output')
 args = p.parse_args()
+
+# prob_name
+prob_type = 'unstruct-' + args.type
+prob_name = '{:s}-n{:d}-lx{:.1f}-ly{:.1f}'.format(prob_type, args.n, args.lx, args.ly)
 
 def create_cantilever(Lx=2.0, Ly=1.0, use_hole=False):
 
@@ -192,7 +198,23 @@ nnodes = np.max(conn)+1
 var = np.zeros((nnodes, 2), dtype=int)
 
 # Set the vars to a negative index where we have a constraint
-var[bcs, :] = -1
+if args.type == 'MBB':
+    # If it is MBB problem, we only fix x degree of freedom at left edge
+    var[bcs, 0] = -1
+
+    # We also want to fix y degree of freedom of lower-right corner node
+    south_east_corner_node = -1
+    xpos = X[0, 0]
+    ypos = X[0, 0]
+    for i in range(nnodes):
+        if X[i, 0] >= xpos and X[i, 1] <= ypos:
+            south_east_corner_node = i
+            xpos = X[i, 0]
+            ypos = X[i, 1]
+    var[south_east_corner_node, 1] =-1
+
+else:
+    var[bcs, :] = -1
 
 # Assign variables to the nodes
 nvars = 0
@@ -240,6 +262,18 @@ elif args.type == 'michell-distri':
 
     force[:] /= np.count_nonzero(force)
 
+elif args.type == 'MBB':
+    north_west_corner_node = -1
+    xpos = X[0, 0]
+    ypos = X[0, 0]
+    for i in range(nnodes):
+        if X[i, 0] <= xpos and X[i, 1] >= ypos:
+            north_west_corner_node = i
+            xpos = X[i, 0]
+            ypos = X[i, 1]
+
+    force[var[north_west_corner_node, 1]] = -forceval
+
 else:
     distance = args.lx**2 + args.ly**2
     xtarget = args.lx
@@ -272,9 +306,6 @@ C[1, 0] = C[0, 1]
 C[1, 1] = C[0, 0]
 C[2, 2] = 0.5*E/(1.0 + nu)
 
-# Generate pickle file
-prob_name = 'michell-unstructured'
-
 prob_pkl = dict()
 prob_pkl['prob_name'] = prob_name
 prob_pkl['nelems'] = len(conn)
@@ -296,8 +327,12 @@ with open(outname, 'wb') as pklfile:
     pickle.dump(prob_pkl, pklfile)
 
 
-print('nelems:', prob_pkl['nelems'])
-print('force:')
-for i in range(len(force)):
-    if force[i] != 0.0:
-        print(force[i], np.where(var == i))
+outname = prob_pkl['prob_name']+'.pkl'
+if args.outdir != '':
+    try:
+        os.mkdir(args.outdir)
+    except:
+        pass
+    outname = args.outdir + '/' + outname
+with open(outname, 'wb') as pklfile:
+    pickle.dump(prob_pkl, pklfile)
