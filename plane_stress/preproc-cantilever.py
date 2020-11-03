@@ -38,7 +38,7 @@ p.add_argument('--nr0', type=int, default=32,
 p.add_argument('--outdir', type=str, default='',
     help='directory for pkl output')
 p.add_argument('--type', type=str, default='cantilever',
-        choices=['cantilever', 'mitchell'])
+        choices=['cantilever', 'michell'])
 args = p.parse_args()
 
 # nelems and nnodes
@@ -51,8 +51,8 @@ nnodes = (nx+1)*(ny+1)
 
 # prob_name
 prob_type = 'cantilever'
-if args.type == 'mitchell':
-    prob_type = prob_type + 'm'
+if args.type == 'michell':
+    prob_type = 'michell'
 prob_name = '{:s}-nx{:d}-ny{:d}-lx{:.1f}-ly{:.1f}'.format(prob_type, nx, ny, lx, ly)
 
 # r0
