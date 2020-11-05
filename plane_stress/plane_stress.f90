@@ -1550,10 +1550,3 @@ end do
 
 end subroutine computeStressStateDeriv
 
-subroutine computeNodalStressStateDeriv()
-
-end subroutine computeNodalStressStateDeriv
-
-subroutine computeNodalStressDeriv()
-
-end subroutine computeNodalStressDeriv
