@@ -1221,6 +1221,50 @@ subroutine computeMmatDeriv(n, ne, nvars, conn, vars, X, density, psi, phi, dfdx
 
 end subroutine computeMmatDeriv
 
+subroutine computeQuadPos(n, ne, conn, X, xpos, ypos)
+! Compute coordinates of quadrature points
+
+  use precision
+  implicit none
+
+  integer, intent(in) :: n, ne, conn(4, ne)
+  real(kind=dtype), intent(in) :: X(2, n)
+  real(kind=dtype), intent(inout) :: xpos(4, ne), ypos(4, ne)
+
+  ! Temporary data used internally
+  integer :: index, i, j
+  real(kind=dtype) :: quadpts(2), ns(4), nxi(4), neta(4)
+
+  ! Set the Gauss quadrature point/weight values
+  quadpts(1) = -0.577350269189626_dtype
+  quadpts(2) = 0.577350269189626_dtype
+
+  do index = 1, ne
+    do j = 1,2
+      do i = 1,2
+        ! Evaluate the shape functions
+        call evalShapeFunctions(quadpts(i), quadpts(j), ns, nxi, neta)
+
+        ! Compute the interpolated x coordinate
+        xpos(2*(j-1) + i, index) = &
+          X(1, conn(1, index) + 1)*ns(1) + &
+          X(1, conn(2, index) + 1)*ns(2) + &
+          X(1, conn(3, index) + 1)*ns(3) + &
+          X(1, conn(4, index) + 1)*ns(4)
+
+        ! Compute the interpolated y coordinate
+        ypos(2*(j-1) + i, index) = &
+          X(2, conn(1, index) + 1)*ns(1) + &
+          X(2, conn(2, index) + 1)*ns(2) + &
+          X(2, conn(3, index) + 1)*ns(3) + &
+          X(2, conn(4, index) + 1)*ns(4)
+
+      end do
+    end do
+  end do
+
+end subroutine
+
 subroutine computeStress( &
   n, ne, nvars, conn, vars, X, &
   epsilon, C, u, rho, stress)
@@ -1317,7 +1361,8 @@ implicit none
 integer, intent(in) :: n, ne, nvars, conn(4, ne), vars(2, n)
 real(kind=dtype), intent(in) :: X(2,n), u(nvars), rho(n)
 real(kind=dtype), intent(in) :: epsilon, C(3,3)
-real(kind=dtype), intent(inout) :: dfdstress(4, ne), dfdrho(n)
+real(kind=dtype), intent(in) :: dfdstress(4, ne)
+real(kind=dtype), intent(inout) :: dfdrho(n)
 
 ! Temporary data used internally
 integer ::  index, i, j, k, ivar
@@ -1504,3 +1549,11 @@ do index = 1, ne
 end do
 
 end subroutine computeStressStateDeriv
+
+subroutine computeNodalStressStateDeriv()
+
+end subroutine computeNodalStressStateDeriv
+
+subroutine computeNodalStressDeriv()
+
+end subroutine computeNodalStressDeriv
