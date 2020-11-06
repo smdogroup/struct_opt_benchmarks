@@ -1550,3 +1550,166 @@ end do
 
 end subroutine computeStressStateDeriv
 
+subroutine computeNodalStress(surelemssize, n, ne, nvars, &
+  surelems, nsurelems, conn, vars, X, epsilon, C, u, rho, nodalstress)
+  ! Compute the nodal stress using superconvergent patch theorey
+
+  use precision
+  implicit none
+  external :: dsysv
+
+  integer, intent(in) :: surelemssize, n, ne, nvars
+  integer, intent(in) :: surelems(surelemssize), nsurelems(n)
+  integer, intent(in) :: conn(4, ne), vars(2, n)
+  real(kind=dtype), intent(in) :: X(2, n), epsilon, C(3, 3)
+  real(kind=dtype), intent(in) :: u(nvars), rho(n)
+  real(kind=dtype), intent(inout) :: nodalstress(n)
+
+  ! Internally used variables
+  integer :: index, i, j, elemptr, info
+  real(kind=dtype) :: xpos(4, ne), ypos(4, ne)
+  real(kind=dtype) :: A(4, 4), b(4), pnode(4), pi(4, 1)
+  real(kind=dtype) :: xi, yi, xnode, ynode
+  real(kind=dtype) :: quad_stress(4, ne), piv(4), work(4)
+
+  ! Zero out nodal stress
+  nodalstress(:) = 0.0_dtype
+
+  ! Get coordinates for quadrature points
+  xpos(:,:) = 0.0_dtype
+  ypos(:,:) = 0.0_dtype
+  call computeQuadPos(n, ne, conn, X, xpos, ypos)
+
+  ! Compute stress at quadrature points
+  quad_stress(:,:) = 0.0_dtype
+  call computeStress(n, ne, nvars, conn, vars, X, &
+                     epsilon, C, u, rho, quad_stress)
+
+  ! Loop over nodes and solve for least square problems
+  elemptr = 1
+  do index = 1, n
+
+    ! zero out A and b
+    A(:,:) = 0.0_dtype
+    b(:) = 0.0_dtype
+
+    ! Loop over all quadrature points in adjacent elements of
+    ! current node to construct A and b
+    do i = 1, nsurelems(index)
+      do j = 1, 4
+        xi = xpos(j, surelems(elemptr)+1)
+        yi = ypos(j, surelems(elemptr)+1)
+        pi(1,1) = 1.0_dtype
+        pi(2,1) = xi
+        pi(3,1) = yi
+        pi(4,1) = xi*yi
+        A = A + matmul(pi, transpose(pi))
+        b(:) = b + quad_stress(j, surelems(elemptr)+1)*pi(:, 1)
+      end do
+      elemptr = elemptr + 1
+    end do
+
+    ! Solve linear system Ax=b using LAPACK
+    call dsysv('U', 4, 1, A, 4, piv, b, 4, work, 4, info)
+
+    ! Get nodal stress
+    xnode = X(1, index)
+    ynode = X(2, index)
+    pnode(1) = 1.0_dtype
+    pnode(2) = xnode
+    pnode(3) = ynode
+    pnode(4) = xnode*ynode
+    nodalstress(index) = dot_product(b, pnode)
+  end do
+
+end subroutine computeNodalStress
+
+subroutine computeNodalStressDeriv(surelemssize, n ,ne, surelems, &
+  nsurelems, conn, X, dfdns, dfdstress)
+! Compute derivative of function of interest w.r.t. quadrature stress
+! dfdstress given the derivative of function w.r.t. nodal stress dfdns.
+! By chain rule, we have:
+!   dfdstress (1 by 4*ne) = dfdns (1 by n) * dnsds (n by 4*ne)
+
+  use precision
+  implicit none
+  external :: dsysv
+
+  integer, intent(in) :: surelemssize, n, ne, conn(4, ne)
+  integer, intent(in) :: surelems(surelemssize), nsurelems(n)
+  real(kind=dtype), intent(in) :: X(2, n), dfdns(n)
+  real(kind=dtype), intent(inout) :: dfdstress(4*ne)
+
+  ! Implicitly used variables
+  integer :: index, i, j, elemptr, info
+  real(kind=dtype) :: xpos(4, ne), ypos(4, ne)
+  real(kind=dtype) :: xi, yi, xnode, ynode
+  real(kind=dtype) :: A(4, 4), B(4, 4), pi(4, 1), pnode(4)
+  real(kind=dtype) :: piv(4), work(4)
+
+  ! Zero out dfds
+  dfdstress(:) = 0.0_dtype
+
+  ! Get coordinates for quadrature points
+  xpos(:,:) = 0.0_dtype
+  ypos(:,:) = 0.0_dtype
+  call computeQuadPos(n, ne, conn, X, xpos, ypos)
+
+  ! Loop over nodesindex
+  elemptr = 1
+  do index = 1, n
+
+    ! Zero out A
+    A(:,:) = 0.0_dtype
+
+    ! Loop over all quadrature points to get A
+    do i = 1, nsurelems(index)
+      do j = 1, 4
+        xi = xpos(j, surelems(elemptr)+1)
+        yi = ypos(j, surelems(elemptr)+1)
+        pi(1,1) = 1.0_dtype
+        pi(2,1) = xi
+        pi(3,1) = yi
+        pi(4,1) = xi*yi
+        A = A + matmul(pi, transpose(pi))
+      end do
+      elemptr = elemptr + 1
+    end do
+
+    ! Revert pointer
+    elemptr = elemptr - nsurelems(index)
+
+    ! Compute nodal polynomial
+    xnode = X(1, index)
+    ynode = X(2, index)
+    pnode(1) = 1.0_dtype
+    pnode(2) = xnode
+    pnode(3) = ynode
+    pnode(4) = xnode*ynode
+
+    ! Populate dfdstress
+    do i = 1, nsurelems(index)
+      do j = 1, 4
+        xi = xpos(j, surelems(elemptr)+1)
+        yi = ypos(j, surelems(elemptr)+1)
+        pi(1,1) = 1.0_dtype
+        pi(2,1) = xi
+        pi(3,1) = yi
+        pi(4,1) = xi*yi
+
+        ! Make a copy of A
+        B(:,:) = A(:,:)
+
+        ! Apply inv(A) to pi
+        call dsysv('U', 4, 1, B, 4, piv, pi, 4, work, 4, info)
+
+        ! Update dfdstress entry
+        dfdstress(4*surelems(elemptr)+j) = &
+          dfdstress(4*surelems(elemptr)+j) + &
+          dfdns(index)*dot_product(pnode, pi(:,1))
+        end do
+      elemptr = elemptr + 1
+    end do
+  end do
+
+end subroutine computeNodalStressDeriv

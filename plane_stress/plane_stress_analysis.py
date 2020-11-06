@@ -35,6 +35,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         # Set the number of variables and the number of nodes
         self.nvars = np.max(self.vars) + 1
         self.nnodes = np.max(self.conn) + 1
+        self.nelems = conn.shape[0]
 
         # Compute the non-zero pattern for the sparse matrix
         rowp = np.zeros(self.nvars+1, dtype=np.intc)
@@ -86,6 +87,24 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         # Covert the matrix to a CSR data format
         self.F = F.tocsr()
 
+        # Get adjacent element numbers and number of adjacent elements
+        # of each node
+        nsurelems = np.zeros(self.nnodes, dtype=np.intc)
+        _surelems = [[] for i in range(self.nnodes)]
+        for i in range(self.nelems):
+            for j in range(4):
+                _surelems[self.conn[i, j]].append(i)
+                nsurelems[self.conn[i, j]] += 1
+
+        # Convert surelems into 1D array
+        surelems = []
+        for i in _surelems:
+            surelems.extend(i)
+        surelems = np.array(surelems, dtype=np.intc)
+
+        self.nsurelems = nsurelems
+        self.surelems = surelems
+
         return
 
     def setup(self):
@@ -97,8 +116,8 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         self.declare_partials(of='m', wrt='x')
         self.add_output('inertia', shape=(1,), desc='moment of inertia')
         self.declare_partials(of='inertia', wrt='x')
-        self.add_output('ks_stress', shape=(1,), desc='ks aggregation of stress')
-        self.declare_partials(of='ks_stress', wrt='x')
+        # self.add_output('ks_stress', shape=(1,), desc='ks aggregation of stress')
+        # self.declare_partials(of='ks_stress', wrt='x')
         self.add_output('ks_nodal_stress', shape=(1,),
                         desc='ks aggregation of nodal stress')
         self.declare_partials(of='ks_nodal_stress', wrt='x')
@@ -204,7 +223,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
 
         return dcdx
 
-    def ks_stress(self, x):
+    def _ks_stress(self, x):
         """
         Compute the KS approximation of the maximum stress
         """
@@ -244,7 +263,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         # Return the compliance
         return ks
 
-    def ks_stress_grad(self, x):
+    def _ks_stress_grad(self, x):
         """
         Compute the gradient of the approximate maximum stress
         """
@@ -281,10 +300,10 @@ class PlaneStressAnalysis(om.ExplicitComponent):
 
         return dksdx
 
-    def nodal_stress(self, x, method='SPR'):
+    def nodal_stress(self, x):
         """
         Compute reconstructed nodal stress using either superconvergent
-        patch recovery or taking average of quadrature values
+        patch recovery method
         """
 
         # Compute the filtered compliance. Note that 'dot' is scipy
@@ -304,64 +323,11 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         # Compute the solution to the linear system K*u = f
         self.u = self.LU(self.force)
 
-        # Compute the stress values at quadrature points
-        nelems = self.conn.shape[0]
-        quad_stress = np.zeros((nelems, 4))
-        plane_stress.computestress(self.conn.T, self.vars.T, self.X.T,
-            self.epsilon, self.C.T, self.u, rho, quad_stress.T)
-
-        # Nodal stress array
+        # Compute nodal stress
         stress = np.zeros(self.nnodes)
-
-        # Array contains number of elements surrounding the node
-        nsurelems = np.zeros(self.nnodes)
-
-        # If not using SPR, we compute nodal stress by averaging
-        # quadrature values
-        if method != 'SPR':
-
-            # Loop over all elements to sum up stress at quadrature points
-            # note that this method is of low fidelity and is only used
-            # for testing
-            for i in range(nelems):
-                for j in range(4):
-                    stress[self.conn[i, j]] = quad_stress[i, j]
-                    nsurelems[self.conn[i, j]] += 1
-            stress = stress / nsurelems
-
-        # Otherwise, using SPR to compute reconstructed nodal stress
-        else:
-            # Get coordinates for quadrature points
-            xpos = np.zeros((nelems, 4))
-            ypos = np.zeros((nelems, 4))
-            plane_stress.computequadpos(self.conn.T, self.X.T, xpos.T, ypos.T)
-
-            # First, we store the number of surrounding elements and their
-            # indices
-            surelems = [[] for i in range(self.nnodes)]
-            for i in range(nelems):
-                for j in range(4):
-                    surelems[self.conn[i, j]].append(i)
-
-            # Solve for a least square problem for each node
-            for i in range(self.nnodes):
-                A = np.zeros((4,4))
-                b = np.zeros(4)
-
-                # Loop over all sampling points in adjacent elements to
-                # construct matrix A and vector b for least square problem
-                for elemi in surelems[i]:
-                    for j in range(4):
-                        xi, yi = xpos[elemi, j] ,ypos[elemi, j]
-                        Pi = np.array([1, xi, yi, xi*yi])
-                        A += np.outer(Pi, Pi)
-                        b += Pi * quad_stress[elemi, j]
-
-                # Solve for least square coefficients
-                a = np.linalg.solve(A, b)
-                xnode, ynode = self.X[i, 0], self.X[i, 1]
-                Pnode = np.array([1, xnode, ynode, xnode*ynode])
-                stress[i] = np.dot(a, Pnode)
+        plane_stress.computenodalstress(self.surelems, self.nsurelems,
+            self.conn.T, self.vars.T, self.X.T, self.epsilon,
+            self.C.T, self.u, rho, stress)
 
         return stress
 
@@ -371,7 +337,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         """
 
         # Compute nodal stress
-        nodal_stress = self.nodal_stress(x, method='SPR')
+        nodal_stress = self.nodal_stress(x)
 
         # Normalize by the material yield stress
         nodal_stress = nodal_stress / self.ys
@@ -397,48 +363,14 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         # Compute the filtered variables
         rho = self.F.dot(x)
 
-        # Get coordinates for quadrature points
-        xpos = np.zeros((nelems, 4))
-        ypos = np.zeros((nelems, 4))
-        plane_stress.computequadpos(self.conn.T, self.X.T, xpos.T, ypos.T)
-
-        # Store the number of surrounding elements and their indices
-        surelems = [[] for i in range(self.nnodes)]
-        for i in range(nelems):
-            for j in range(4):
-                surelems[self.conn[i, j]].append(i)
-
-        # Loop over nodes to compute derivative of nodal stress
-        # w.r.t. quadrature stress
-        dnsds = np.zeros((nnodes, 4*nelems))
-        for i in range(self.nnodes):
-
-                # Compute nodal polynomial
-                xnode, ynode = self.X[i, 0], self.X[i, 1]
-                Pnode = np.array([1, xnode, ynode, xnode*ynode])
-
-                # Populate matrix A
-                A = np.zeros((4,4))
-                for elemi in surelems[i]:
-                    for j in range(4):
-                        xi, yi = xpos[elemi, j] ,ypos[elemi, j]
-                        Pi = np.array([1, xi, yi, xi*yi])
-                        A += np.outer(Pi, Pi)
-
-                # Populare dnsds
-                for elemi in surelems[i]:
-                    for j in range(4):
-                        xi, yi = xpos[elemi, j] ,ypos[elemi, j]
-                        Pi = np.array([1, xi, yi, xi*yi])
-                        dnsds[i, 4*elemi+j] = np.dot(Pnode, np.linalg.solve(A, Pi))
-
+        # Compute derivative of ks w.r.t. quadrature stress
+        dksds = np.zeros(4*nelems)
+        dksdns = self.nodaletas
+        plane_stress.computenodalstressderiv(self.surelems, self.nsurelems,
+            self.conn.T, self.X.T, dksdns, dksds)
 
         # Compute the derivative of nodal stress w.r.t. quadrature stress
-        dksdns = self.nodaletas
-        dksds = np.matmul(dksdns, dnsds)
         dksds = dksds.reshape((-1, 4))
-        print(dnsds.shape)
-        print(dnsds)
 
         # Compute dfdu
         dfdu = np.zeros(self.nvars)
@@ -557,7 +489,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         outputs['c'] = self.compliance(x[:])
         outputs['m'] = self.mass(x[:])
         outputs['inertia'] = self.inertia(x[:])
-        outputs['ks_stress'] = self.ks_stress(x[:])
+        # outputs['ks_stress'] = self.ks_nodal_stress(x[:])
         outputs['ks_nodal_stress'] =self.ks_nodal_stress(x[:])
         if self.freqconstr is True:
             outputs['freq'] = self.frequency(x[:])
@@ -567,7 +499,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         partials['c', 'x'] = self.compliance_grad(x[:])
         partials['m', 'x'] = self.mass_grad(x[:])
         partials['inertia', 'x'] = self.inertia_grad(x[:])
-        partials['ks_stress', 'x'] = self.ks_stress_grad(x[:])
+        # partials['ks_stress', 'x'] = self.ks_nodal_stress_grad(x[:])
         partials['ks_nodal_stress', 'x'] = self.ks_nodal_stress_grad(x[:])
         if self.freqconstr is True:
             partials['freq', 'x'] = self.frequency_grad(x[:])
@@ -611,11 +543,13 @@ class PlaneStressAnalysis(om.ExplicitComponent):
 
         # Compute mass
         mass = self.mass(x)
+        xfull = np.ones(self.nnodes)
+        mass /= self.mass(xfull)
 
         # Compute base frequency
         base_freq = self.base_frequencies(x)[0]
 
-        ax.set_title('compliance: {:.2e}\nmass: {:.2e}\nminimal frequency: {:.2e}'.
+        ax.set_title('compliance: {:.2e}\nnormalized mass: {:.2e}\nminimal frequency: {:.2e}'.
                       format(compliance, mass, base_freq))
 
         # Compute original eigenvalues
@@ -631,10 +565,13 @@ class PlaneStressAnalysis(om.ExplicitComponent):
             plt.savefig(name+'.png')
             plt.close()
 
-    def plot_stress(self, stress):
+    def plot_stress(self, x):
         """
         Generate stress contour plot
         """
+
+        # Compute stress
+        stress = self.nodal_stress(x)
         triangles = []
         for i in range(self.conn.shape[0]):
             triangles.append([self.conn[i, 0], self.conn[i, 1], self.conn[i, 2]])
@@ -666,6 +603,20 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         fig.set_size_inches(6.4,5.0)
         fig.subplots_adjust(top=0.85)
         fig.subplots_adjust(bottom=0.05)
+
+        # Compute mass
+        mass = self.mass(x)
+        xfull = np.ones(self.nnodes)
+        mass /= self.mass(xfull)
+
+        # Compute normalized maximum stress
+        ks_stress = self.ks_nodal_stress(x)
+
+        # Set title
+        ax.set_title('mass: {:.2e}\nks stress: {:.2e}'.format(
+            mass, ks_stress))
+
+
         plt.show()
 
 
