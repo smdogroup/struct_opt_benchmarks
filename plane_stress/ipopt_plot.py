@@ -53,7 +53,7 @@ for line_index in range(datastart_index, dataend_index):
         intPattern = r'[\+-]?\d+'
         sciPattern = r'[\+-]?\d+\.\d+[eE][\+-]\d+'
         floPattern = r'[\+-]?\d+\.\d+'
-        itern.append(re.findall(intPattern, data[0])[0])
+        itern.append(re.findall(intPattern, data[0].replace('r',''))[0])
         obj.append(re.findall(sciPattern, data[1])[0])
         inf_pr.append(re.findall(sciPattern, data[2])[0])
         inf_du.append(re.findall(sciPattern, data[3])[0])
