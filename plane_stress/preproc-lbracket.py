@@ -159,7 +159,7 @@ for j in range(ny):
 forceval = 25.0
 force = np.zeros(ndof)
 i = nx
-for j in range(ny1+1):
+for j in range(int(0.75*(ny1+1)), ny1+1):
     force[dof[i + j*(nx+1), 1]] = -forceval
 
 # Generate pickle file
