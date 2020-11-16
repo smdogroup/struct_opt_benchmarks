@@ -10,3 +10,5 @@ __pycache__
 *.tr
 *.pbs
 *.vtk
+plane_stress/results/*
+plane_stress/tests/*
