@@ -185,12 +185,13 @@ def preproc(n, AR, prob, meshtype, ratio1, ratio2,
                     conn[i + j*nx, 1] = i+1 + (nx+1)*j
                     conn[i + j*nx, 2] = i + (nx+1)*(j+1)
                     conn[i + j*nx, 3] = i+1 + (nx+1)*(j+1)
+
             if prob == 'MBB':
                 for j in range(ny+1):
                     for i in range(nx+1):
                         X[i + j*(nx+1), 0] = lx*i/nx
                         X[i + j*(nx+1), 1] = ly*j/ny
-                        if i == nx and j == 0:
+                        if i > round(nx*(1-forced_portion)) and j == 0:
                             dof[i + j*(nx+1), 0] = ndof
                             ndof += 1
                         elif i == 0:

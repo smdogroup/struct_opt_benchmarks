@@ -114,40 +114,45 @@ def create_geo(AR, prob, forced_portion,
 
         # Create the vertices on the surface
         v1 = TMR.VertexFromFace(face, 0.0, 0.0)
-        v2 = TMR.VertexFromFace(face, Lx, 0.0)
-        v3 = TMR.VertexFromFace(face, Lx, Ly)
-        v4 = TMR.VertexFromFace(face, Lx*forced_portion, Ly)
-        v5 = TMR.VertexFromFace(face, 0.0, Ly)
-        verts = [v1, v2, v3, v4, v5]
+        v2 = TMR.VertexFromFace(face, Lx*(1-forced_portion), 0.0)
+        v3 = TMR.VertexFromFace(face, Lx, 0.0)
+        v4 = TMR.VertexFromFace(face, Lx, Ly)
+        v5 = TMR.VertexFromFace(face, Lx*forced_portion, Ly)
+        v6 = TMR.VertexFromFace(face, 0.0, Ly)
+        verts = [v1, v2, v3, v4, v5, v6]
 
         # Set up the edges
-        pcurve1 = TMR.BsplinePcurve(np.array([[0.0, 0.0], [Lx, 0.0]]))
-        pcurve2 = TMR.BsplinePcurve(np.array([[Lx, 0.0], [Lx, Ly]]))
-        pcurve3 = TMR.BsplinePcurve(np.array([[Lx, Ly], [Lx*forced_portion, Ly]]))
-        pcurve4 = TMR.BsplinePcurve(np.array([[Lx*forced_portion, Ly], [0.0, Ly]]))
-        pcurve5 = TMR.BsplinePcurve(np.array([[0.0, Ly], [0.0, 0.0]]))
+        pcurve1 = TMR.BsplinePcurve(np.array([[0.0, 0.0], [Lx*(1-forced_portion), 0.0]]))
+        pcurve2 = TMR.BsplinePcurve(np.array([[Lx*(1-forced_portion), 0.0], [Lx, 0.0]]))
+        pcurve3 = TMR.BsplinePcurve(np.array([[Lx, 0.0], [Lx, Ly]]))
+        pcurve4 = TMR.BsplinePcurve(np.array([[Lx, Ly], [Lx*forced_portion, Ly]]))
+        pcurve5 = TMR.BsplinePcurve(np.array([[Lx*forced_portion, Ly], [0.0, Ly]]))
+        pcurve6 = TMR.BsplinePcurve(np.array([[0.0, Ly], [0.0, 0.0]]))
 
         edge1 = TMR.EdgeFromFace(face, pcurve1)
         edge2 = TMR.EdgeFromFace(face, pcurve2)
         edge3 = TMR.EdgeFromFace(face, pcurve3)
         edge4 = TMR.EdgeFromFace(face, pcurve4)
         edge5 = TMR.EdgeFromFace(face, pcurve5)
+        edge6 = TMR.EdgeFromFace(face, pcurve6)
 
         edge1.setVertices(v1, v2)
         edge2.setVertices(v2, v3)
         edge3.setVertices(v3, v4)
         edge4.setVertices(v4, v5)
-        edge5.setVertices(v5, v1)
+        edge5.setVertices(v5, v6)
+        edge6.setVertices(v6, v1)
 
         edge1.setName('1')
         edge2.setName('2')
         edge3.setName('3')
         edge4.setName('4')
         edge5.setName('5')
+        edge6.setName('6')
 
-        edges = [edge1, edge2, edge3, edge4, edge5]
-        dirs = [1, 1, 1, 1, 1]
-        loop = TMR.EdgeLoop([edge1, edge2, edge3, edge4, edge5], dirs)
+        edges = [edge1, edge2, edge3, edge4, edge5, edge6]
+        dirs = [1, 1, 1, 1, 1, 1]
+        loop = TMR.EdgeLoop([edge1, edge2, edge3, edge4, edge5, edge6], dirs)
         face.addEdgeLoop(1, loop)
 
     elif prob == 'lbracket':
@@ -296,8 +301,11 @@ def create_mesh(n, AR, prob, ratio1, ratio2, forced_portion,
     X = np.array(X[:,:2])
 
     # Get the nodes with the specified name
-    if prob == 'cantilever' or prob == 'MBB':
+    if prob == 'cantilever':
         bcs = forest.getNodesWithName('5')
+    elif prob == 'MBB':
+        bc1 = forest.getNodesWithName('6')
+        bc2 = forest.getNodesWithName('2')
     elif prob == 'michell':
         bcs = forest.getNodesWithName('6')
     elif prob == 'lbracket':
@@ -311,18 +319,8 @@ def create_mesh(n, AR, prob, ratio1, ratio2, forced_portion,
     if prob == 'MBB':
 
         # If it is MBB problem, we only fix x degree of freedom at left edge
-        dof[bcs, 0] = -1
-
-        # We also want to fix y degree of freedom of lower-right corner node
-        south_east_corner_node = -1
-        xpos = X[0, 0]
-        ypos = X[0, 0]
-        for i in range(nnodes):
-            if X[i, 0] >= xpos and X[i, 1] <= ypos:
-                south_east_corner_node = i
-                xpos = X[i, 0]
-                ypos = X[i, 1]
-        dof[south_east_corner_node, 1] =-1
+        dof[bc1, 0] = -1
+        dof[bc2, 1] = -1
 
     else:
         dof[bcs, :] = -1
@@ -430,7 +428,7 @@ def create_mesh(n, AR, prob, ratio1, ratio2, forced_portion,
 
         else:
 
-            quads_on_edge = forest.getQuadsWithName('4')
+            quads_on_edge = forest.getQuadsWithName('5')
 
             for q in quads_on_edge:
                 if q.info < 2:
