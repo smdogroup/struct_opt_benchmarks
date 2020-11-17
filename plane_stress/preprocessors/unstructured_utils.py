@@ -1,6 +1,9 @@
-from tmr import TMR
 import numpy as np
 from mpi4py import MPI
+try:
+    from tmr import TMR
+except:
+    print('\n[Warning] Cannot import tmr, unstructured mesh generator is unavailable!')
 
 def create_geo(AR, prob, forced_portion,
     ratio1, ratio2, use_hole, hole_radius):
