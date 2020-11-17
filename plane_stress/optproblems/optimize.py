@@ -311,8 +311,9 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qval, in_epsilon,
         prob_info = 'stress-{:.2e}'.format(design_stress)
 
     # Set up output name
-    outputname = '{:s}-{:s}-{:s}-{:s}-iter-{:d}'.format(
-        in_opt_problem, optimizer_info, prob_info, prob_name, in_max_iter)
+    outputname = '{:s}-{:s}-{:s}-{:s}-q{:.1f}-e{:.1f}-ks{:.1f}-iter{:d}'.format(
+        in_opt_problem, optimizer_info, prob_info, prob_name,
+        in_qval, in_epsilon, in_ks_parameter, in_max_iter)
     if in_outdir is not None:
         outputname = in_outdir +'/' + outputname
 
