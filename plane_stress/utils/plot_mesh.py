@@ -9,8 +9,9 @@ from matplotlib.patches import Arrow, Polygon
 import numpy as np
 import argparse
 import pickle
+import os
 
-def plot_mesh(prob_pkl, savefig):
+def plot_mesh(prob_pkl, savefig, outdir):
 
     # Get data
     prob_name = prob_pkl['prob_name']
@@ -68,7 +69,24 @@ def plot_mesh(prob_pkl, savefig):
         prob_name, np.count_nonzero(force), np.max(np.abs(force))))
 
     if savefig:
-        plt.savefig(prob_name+'_mesh.png')
+        if outdir is not None:
+        # Check if specified output directory exists
+            if os.path.isdir(outdir):
+                # outdir exists
+                pass
+            # Otherwise, try to create the folder
+            else:
+                try:
+                    os.mkdir(outdir)
+                except:
+                    print("\n[Warning] Cannot create directory {:s}!\n".format(outdir))
+                    outdir = None
+
+        if outdir is not None:
+            plt.savefig(outdir+'/'+prob_name+'_mesh.png')
+        else:
+            plt.savefig(prob_name+'_mesh.png')
+
         plt.close()
     else:
         plt.show()
@@ -79,6 +97,7 @@ if __name__ == '__main__':
     p = argparse.ArgumentParser('Takes in a problem object file in plk format and plot mesh')
     p.add_argument('filename', metavar='cantilever.pkl', type=str)
     p.add_argument('--savefig', action='store_true')
+    p.add_argument('--outdir', type=str)
     args = p.parse_args()
 
     # Load in pickle file
@@ -86,4 +105,4 @@ if __name__ == '__main__':
         prob_pkl = pickle.load(pklfile)
 
     # Plot mesh
-    plot_mesh(prob_pkl, args.savefig)
+    plot_mesh(prob_pkl, args.savefig, args.outdir)

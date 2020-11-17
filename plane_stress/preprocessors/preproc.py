@@ -274,11 +274,19 @@ def preproc(n, AR, prob, meshtype, ratio1, ratio2,
 
     # Save pickle file
     outname = prob_pkl['prob_name']+'.pkl'
-    if outdir != '':
-        try:
-            os.mkdir(outdir)
-        except:
+    if outdir is not None:
+        # Check if specified output directory exists
+        if os.path.isdir(outdir):
+            # outdir exists
             pass
+        # Otherwise, try to create the folder
+        else:
+            try:
+                os.mkdir(outdir)
+            except:
+                print("\n[Warning] Cannot create directory {:s}!\n".format(outdir))
+                outdir = None
+    if outdir is not None:
         outname = outdir + '/' + outname
     with open(outname, 'wb') as pklfile:
         pickle.dump(prob_pkl, pklfile)
@@ -286,7 +294,7 @@ def preproc(n, AR, prob, meshtype, ratio1, ratio2,
     # Save mesh plot
     if plot_mesh:
         from plane_stress.utils import plot_mesh
-        plot_mesh(prob_pkl, savefig=True)
+        plot_mesh(prob_pkl, savefig=True, outdir=outdir)
 
     return
 
@@ -310,7 +318,7 @@ if __name__ == '__main__':
         help='absolute radius = ly*hole_radius or ly1*hole_radius for lbracket')
     p.add_argument('--nr0', type=int, default=32,
         help='nr0 controls filter radius, r0 = height / nr0')
-    p.add_argument('--outdir', type=str, default='',
+    p.add_argument('--outdir', type=str, default=None,
         help='directory for pkl output')
     p.add_argument('--no_plot_mesh', action='store_false')
     args = p.parse_args()

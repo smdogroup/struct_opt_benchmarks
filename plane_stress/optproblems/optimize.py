@@ -447,8 +447,8 @@ if __name__ == '__main__':
         'comp_min_massstress_constr', 'comp_min_massfreqstress_constr',
         'stress_min_mass_constr', 'mass_min_stress_constr'])
     p.add_argument('optimizer', type=str, choices=['ParOpt', 'SNOPT', 'IPOPT'])
-    p.add_argument('--qval', type=float, default=3.0)
-    p.add_argument('--epsilon', type=float, default=0.1)
+    p.add_argument('--qval', type=float, default=5.0)
+    p.add_argument('--epsilon', type=float, default=0.2)
     p.add_argument('--ks_parameter', type=float, default=50.0)
     p.add_argument('--design_mass', type=float, default=None,
         help='normalized against full material design')
