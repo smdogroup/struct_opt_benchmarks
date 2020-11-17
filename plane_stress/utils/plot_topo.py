@@ -23,13 +23,30 @@ def plot_topo(picklename, savefig=False):
     force = prob_pkl['force']
     r0 = prob_pkl['r0']
     density = prob_pkl['density']
-    qval = prob_pkl['qval']
 
     try:
         x = prob_pkl['x']
     except:
         print("\n[Warning] pkl file doesn't contain design!\n")
         x = None
+
+    try:
+        qval = prob_pkl['qval']
+    except:
+        print("\n[Warning] pkl file doesn't contain qval, set qval = 3.0.\n")
+        qval = 3.0
+
+    try:
+        epsilon = prob_pkl['epsilon']
+    except:
+        print("\n[Warning] pkl file doesn't contain epsilon, set epsilon = 0.1.\n")
+        epsilon = 0.1
+
+    try:
+        ks_parameter = prob_pkl['ks_parameter']
+    except:
+        print("\n[Warning] pkl file doesn't contain ks_parameter, set ks_parameter = 50.0.\n")
+        ks_parameter = 50.0
 
     try:
         design_freq = prob_pkl['design_freq']
@@ -47,9 +64,9 @@ def plot_topo(picklename, savefig=False):
 
     # Instantiate analysis because we need to compute filtered design
     analysis = PlaneStressAnalysis(conn, dof, X, force, r0, C, density,
-        qval, design_stress=design_stress, design_freq=design_freq,
-        compute_comp=True, compute_mass=True, compute_freq=True,
-        compute_stress=True)
+        qval, epsilon, ks_parameter, design_stress=design_stress,
+        design_freq=design_freq, compute_comp=True, compute_mass=True,
+        compute_freq=True, compute_stress=True)
 
     # Plot or save fig
     figname = os.path.splitext(picklename)[0]

@@ -19,9 +19,9 @@ from plane_stress.wrapper import PlaneStressAnalysis
 import os
 import timeit
 
-def optimize(in_picklename, in_opt_problem, in_optimizer, in_design_mass,
-             in_design_freq, in_design_stress, in_stress_as_fraction,
-             in_max_iter, in_ParOpt_use_adaptive_gamma_update,
+def optimize(in_picklename, in_opt_problem, in_optimizer, in_qval, in_epsilon,
+             in_ks_parameter, in_design_mass, in_design_freq, in_design_stress,
+             in_stress_as_fraction, in_max_iter, in_ParOpt_use_adaptive_gamma_update,
              in_ParOpt_use_filter, in_ParOpt_use_soc, in_info, in_outdir):
 
     # Check inputs
@@ -72,7 +72,6 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_design_mass,
     force = prob_pkl['force']
     r0 = prob_pkl['r0']
     density = prob_pkl['density']
-    qval = prob_pkl['qval']
 
     # Set up info string for output
     optimizer_info = in_optimizer
@@ -101,7 +100,8 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_design_mass,
 
         # Create analysis object
         analysis = PlaneStressAnalysis(conn, dof, X, force, r0,
-            C, density, qval, compute_comp=True, compute_mass=True)
+            C, density, in_qval, in_epsilon, in_ks_parameter,
+            compute_comp=True, compute_mass=True)
 
         # Define openmdao problem
         prob.model.add_subsystem('topo', analysis)
@@ -129,8 +129,9 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_design_mass,
 
         # Create analysis object
         analysis = PlaneStressAnalysis(conn, dof, X, force, r0,
-            C, density, qval, compute_comp=True, compute_mass=True,
-            compute_freq=True, design_freq=in_design_freq)
+            C, density, in_qval, in_epsilon, in_ks_parameter,
+            compute_comp=True, compute_mass=True, compute_freq=True,
+            design_freq=in_design_freq)
 
         # Define openmdao problem
         prob.model.add_subsystem('topo', analysis)
@@ -157,7 +158,7 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_design_mass,
         if in_stress_as_fraction:
 
             analysis = PlaneStressAnalysis(conn, dof, X, force, r0,
-                C, density, qval)
+                C, density, in_qval, in_epsilon, in_ks_parameter)
             x_full = np.ones(nnodes)
             stress_full = np.max(analysis.nodal_stress(x_full))
             design_stress = in_design_stress*stress_full
@@ -170,7 +171,8 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_design_mass,
 
         # Create analysis object
         analysis = PlaneStressAnalysis(conn, dof, X, force, r0,
-                C, density, qval, compute_comp=True, compute_stress=True,
+                C, density, in_qval, in_epsilon, in_ks_parameter,
+                compute_comp=True, compute_stress=True,
                 compute_mass=True, design_stress=design_stress)
 
         # Define openmdao problem
@@ -201,7 +203,7 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_design_mass,
         if in_stress_as_fraction:
 
             analysis = PlaneStressAnalysis(conn, dof, X, force, r0,
-                C, density, qval)
+                C, density, in_qval, in_epsilon, in_ks_parameter)
             x_full = np.ones(nnodes)
             stress_full = np.max(analysis.nodal_stress(x_full))
             design_stress = in_design_stress*stress_full
@@ -215,9 +217,9 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_design_mass,
 
         # Create analysis object
         analysis = PlaneStressAnalysis(conn, dof, X, force, r0,
-            C, density, qval, compute_comp=True, compute_stress=True,
-            compute_freq=True, compute_mass=True, design_stress=design_stress,
-            design_freq=in_design_freq)
+            C, density, in_qval, in_epsilon, in_ks_parameter, compute_comp=True,
+            compute_stress=True, compute_freq=True, compute_mass=True,
+            design_stress=design_stress, design_freq=in_design_freq)
 
         # Define openmdao problem
         x_full = np.ones(nnodes)
@@ -245,7 +247,7 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_design_mass,
         if in_stress_as_fraction:
 
             analysis = PlaneStressAnalysis(conn, dof, X, force, r0,
-                C, density, qval)
+                C, density, in_qval, in_epsilon, in_ks_parameter)
             x_full = np.ones(nnodes)
             stress_full = np.max(analysis.nodal_stress(x_full))
             design_stress = in_design_stress*stress_full
@@ -258,8 +260,8 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_design_mass,
 
         # Create analysis object
         analysis = PlaneStressAnalysis(conn, dof, X, force, r0,
-                C, density, qval, compute_stress=True,
-                compute_mass=True, design_stress=design_stress)
+                C, density, in_qval, in_epsilon, in_ks_parameter,
+                compute_stress=True, compute_mass=True, design_stress=design_stress)
 
         # Define openmdao problem
         prob.model.add_subsystem('topo', analysis)
@@ -282,7 +284,7 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_design_mass,
         if in_stress_as_fraction:
 
             analysis = PlaneStressAnalysis(conn, dof, X, force, r0,
-                C, density, qval)
+                C, density, in_qval, in_epsilon, in_ks_parameter)
             x_full = np.ones(nnodes)
             stress_full = np.max(analysis.nodal_stress(x_full))
             design_stress = in_design_stress*stress_full
@@ -295,8 +297,8 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_design_mass,
 
         # Create analysis object
         analysis = PlaneStressAnalysis(conn, dof, X, force, r0,
-                C, density, qval, compute_stress=True,
-                compute_mass=True, design_stress=design_stress)
+                C, density, in_qval, in_epsilon, in_ks_parameter,
+                compute_stress=True, compute_mass=True, design_stress=design_stress)
 
         # Define openmdao problem
         prob.model.add_subsystem('topo', analysis)
@@ -420,9 +422,14 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_design_mass,
             snopt_plot(out_name, savefig=True)
 
 
-    # Save solution to pkl file
+    # Save extra information to pkl file
     prob_pkl['x'] = x_opt
     prob_pkl['opt_time'] = '{:.2e} s'.format(t_end - t_start)
+    prob_pkl['qval'] = in_qval
+    prob_pkl['epsilon'] = in_epsilon
+    prob_pkl['ks_parameter'] = in_ks_parameter
+
+    # Output pkl file
     picklename = outputname+'.pkl'
     with open(picklename, 'wb') as pklfile:
         pickle.dump(prob_pkl, pklfile)
@@ -439,6 +446,9 @@ if __name__ == '__main__':
         'comp_min_massstress_constr', 'comp_min_massfreqstress_constr',
         'stress_min_mass_constr', 'mass_min_stress_constr'])
     p.add_argument('optimizer', type=str, choices=['ParOpt', 'SNOPT', 'IPOPT'])
+    p.add_argument('--qval', type=float, default=3.0)
+    p.add_argument('--epsilon', type=float, default=0.1)
+    p.add_argument('--ks_parameter', type=float, default=50.0)
     p.add_argument('--design_mass', type=float, default=None,
         help='normalized against full material design')
     p.add_argument('--design_freq', type=float, default=None)
@@ -452,7 +462,8 @@ if __name__ == '__main__':
     p.add_argument('--outdir', type=str, default=None)
     args = p.parse_args()
 
-    optimize(args.picklename, args.opt_problem, args.optimizer, args.design_mass,
+    optimize(args.picklename, args.opt_problem, args.optimizer,
+             args.qval, args.epsilon, args.ks_parameter, args.design_mass,
              args.design_freq, args.design_stress, args.stress_as_fraction,
              args.max_iter, args.ParOpt_use_adaptive_gamma_update,
              args.ParOpt_use_filter, args.ParOpt_use_soc, args.info, args.outdir)

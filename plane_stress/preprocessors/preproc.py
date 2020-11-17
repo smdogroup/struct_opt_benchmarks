@@ -19,7 +19,6 @@ prob_pkl: dict
     |---force:        nodal forces,            ndof*1 ndarray
     |---r0:           filter radius,           float
     |---density:      material density,        float
-    |---qval:         SIMP penalty,            float
 
 domain:
 rectangle
@@ -57,7 +56,7 @@ import os
 
 def preproc(n, AR, prob, meshtype, ratio1, ratio2,
     use_concentrated_force, use_hole, hole_radius,
-    qval, nr0, outdir, plot_mesh, force_magnitude,
+    nr0, outdir, plot_mesh, force_magnitude,
     forced_portion, ly, density, E, nu):
 
     # Check input values
@@ -81,8 +80,8 @@ def preproc(n, AR, prob, meshtype, ratio1, ratio2,
         ly2 = ly - ly1
         lx2 = lx - lx1
 
-        prob_name = '{:s}-{:s}-n{:d}-AR{:.1f}-r1-{:.1f}-r2-{:.1f}-qval-{:.1f}'.format(
-            meshtype, prob, n, AR, ratio1, ratio2, qval)
+        prob_name = '{:s}-{:s}-n{:d}-AR{:.1f}-r1-{:.1f}-r2-{:.1f}'.format(
+            meshtype, prob, n, AR, ratio1, ratio2)
 
         if meshtype == 'structured':
             nelems = nx1*ny1 + nx1*ny2 + nx2*ny1
@@ -93,8 +92,8 @@ def preproc(n, AR, prob, meshtype, ratio1, ratio2,
         lx = ly*AR
         ny = n
         nx = round(ny*AR)
-        prob_name = '{:s}-{:s}-n{:d}-AR{:.1f}-qval-{:.1f}'.format(
-            meshtype, prob, n, AR, qval)
+        prob_name = '{:s}-{:s}-n{:d}-AR{:.1f}'.format(
+            meshtype, prob, n, AR)
 
         if meshtype == 'structured':
             nelems = nx*ny
@@ -272,7 +271,6 @@ def preproc(n, AR, prob, meshtype, ratio1, ratio2,
     prob_pkl['force'] = force
     prob_pkl['r0'] = r0
     prob_pkl['density'] = density
-    prob_pkl['qval'] = qval
 
     # Save pickle file
     outname = prob_pkl['prob_name']+'.pkl'
@@ -310,8 +308,6 @@ if __name__ == '__main__':
     p.add_argument('--use_hole', action='store_true')
     p.add_argument('--hole_radius', type=float, default=0.25,
         help='absolute radius = ly*hole_radius or ly1*hole_radius for lbracket')
-    p.add_argument('--qval', type=float, default=3.0,
-        help='penalty parameter of SIMP method')
     p.add_argument('--nr0', type=int, default=32,
         help='nr0 controls filter radius, r0 = height / nr0')
     p.add_argument('--outdir', type=str, default='',
@@ -331,6 +327,6 @@ if __name__ == '__main__':
     # call preproc
     preproc(args.n, args.AR, args.prob, args.meshtype,
     args.ratio1, args.ratio2,args.use_concentrated_force,
-    args.use_hole, args.hole_radius,args.qval, args.nr0,
+    args.use_hole, args.hole_radius, args.nr0,
     args.outdir, args.no_plot_mesh, force_magnitude,
     forced_portion, ly, density, E, nu)

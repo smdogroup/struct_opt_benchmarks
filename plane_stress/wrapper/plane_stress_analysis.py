@@ -11,12 +11,12 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 class PlaneStressAnalysis(om.ExplicitComponent):
 
-    def __init__(self, conn, dof, X, force, r0, C, density, qval,
+    def __init__(self, conn, dof, X, force, r0, C, density,
+                 qval, epsilon, ks_parameter,
                  design_stress=None, design_freq=None,
                  compute_comp=False, compute_mass=False,
                  compute_inertia=False, compute_freq=False,
-                 compute_stress=False, num_eigs=8, epsilon=0.1,
-                 ks_parameter=50.0, eigsh_sigma=-100.0):
+                 compute_stress=False, num_eigs=8,eigsh_sigma=-100.0):
         """
         Initialize the analysis class object
         """
@@ -312,14 +312,6 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         ks = max_stress + np.log(etas_sum) / self.ks_parameter
         self.nodaletas = self.nodaletas / etas_sum
 
-        print('ks parameter: {:.2f}, stress epsilon: {:.3f}'.format(self.ks_parameter, self.epsilon))
-        print('[dimensionless] max stress: {:.5e}, ks stress: {:.5e}, rel. err: {:.5e}'.format(
-            max_stress, ks, (ks-max_stress)/max_stress))
-
-        print('[ dimensional ] max stress: {:.5e}, ks stress: {:.5e}, rel. err: {:.5e}'.format(
-            max_stress*self.design_stress, ks*self.design_stress,
-            (ks-max_stress)/max_stress))
-
         return ks
 
     def ks_nodal_stress_grad(self, x):
@@ -563,8 +555,8 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         cax = divider.append_axes("right", size="5%", pad=0.05)
         fig.colorbar(cntr, cax=cax)
         fig.set_size_inches(6.4,5.0)
-        fig.subplots_adjust(top=0.85)
-        fig.subplots_adjust(bottom=0.05)
+        fig.subplots_adjust(top=0.80)
+        fig.subplots_adjust(bottom=0.02)
 
         # Compute compliance
         compliance = self.compliance(x)
@@ -592,14 +584,16 @@ class PlaneStressAnalysis(om.ExplicitComponent):
             freqc = '-'
 
         # Set title
-        title = '{:>15s}{:<10f}{:>15s}{:<10f}\n' \
-                '{:>15s}{:<10f}{:>15s}{:<10f}\n' \
-                '{:>15s}{:<10s}{:>15s}{:<10s}'.format(
+        title = '{:<15s}{:<12.6f}{:<15s}{:<12.6f}\n' \
+                '{:<15s}{:<12.6f}{:<15s}{:<12.6f}\n' \
+                '{:<15s}{:<12s}{:<15s}{:<12s}\n' \
+                '{:<10s}{:<8.2f}{:<10s}{:<8.2f}{:<10s}{:<8.2f}'.format(
                 'compliance:', compliance, 'norm-ed mass:', normalized_mass,
                 'base freq:', base_freq, 'max stress:', np.max(stress),
-                'ks stress:', ks_stress, 'freq constr:', freqc)
+                'freq constr:', freqc, 'ks stress:', ks_stress,
+                'SIMP qval:', self.qval, 'epsilon:', self.epsilon, 'ks param:', self.ks_parameter)
 
-        ax.set_title(title)
+        ax.set_title(title, loc='left')
 
         # Plot or save the figure
         if savefig is False:
@@ -647,8 +641,8 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         cax = divider.append_axes("right", size="5%", pad=0.05)
         fig.colorbar(cntr, cax=cax)
         fig.set_size_inches(6.4,5.0)
-        fig.subplots_adjust(top=0.85)
-        fig.subplots_adjust(bottom=0.05)
+        fig.subplots_adjust(top=0.80)
+        fig.subplots_adjust(bottom=0.02)
 
         # Compute compliance
         compliance = self.compliance(x)
@@ -676,14 +670,16 @@ class PlaneStressAnalysis(om.ExplicitComponent):
             freqc = '-'
 
         # Set title
-        title = '{:>15s}{:<10f}{:>15s}{:<10f}\n' \
-                '{:>15s}{:<10f}{:>15s}{:<10f}\n' \
-                '{:>15s}{:<10s}{:>15s}{:<10s}'.format(
+        title = '{:<15s}{:<12.6f}{:<15s}{:<12.6f}\n' \
+                '{:<15s}{:<12.6f}{:<15s}{:<12.6f}\n' \
+                '{:<15s}{:<12s}{:<15s}{:<12s}\n' \
+                '{:<10s}{:<8.2f}{:<10s}{:<8.2f}{:<10s}{:<8.2f}'.format(
                 'compliance:', compliance, 'norm-ed mass:', normalized_mass,
                 'base freq:', base_freq, 'max stress:', np.max(stress),
-                'ks stress:', ks_stress, 'freq constr:', freqc)
+                'freq constr:', freqc, 'ks stress:', ks_stress,
+                'SIMP qval:', self.qval, 'epsilon:', self.epsilon, 'ks param:', self.ks_parameter)
 
-        ax.set_title(title)
+        ax.set_title(title, loc='left')
 
         # Plot or save the figure
         if savefig is False:
@@ -730,7 +726,6 @@ if __name__ == '__main__':
     rho = np.ones(nnodes)
 
     C = np.zeros((3, 3))
-    qval = 5.0
 
     density = 2700.0
 
@@ -768,9 +763,10 @@ if __name__ == '__main__':
 
     # Create analysis object instance
     analysis = PlaneStressAnalysis(conn, dof, X, force,
-        r0, C, density, qval, design_stress=200.0,
-        design_freq=0.0, compute_comp=True, compute_mass=True,
-        compute_inertia=True, compute_freq=True, compute_stress=True)
+        r0, C, density, qval=3.0, epsilon=0.1, ks_parameter=50.0,
+        design_stress=200.0, design_freq=0.0, compute_comp=True,
+        compute_mass=True, compute_inertia=True, compute_freq=True,
+        compute_stress=True)
 
     # We set random material for each element
     np.random.seed(0)
