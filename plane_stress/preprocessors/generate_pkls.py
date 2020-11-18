@@ -13,11 +13,12 @@ def generate_pkls(ns, ARs, plot_mesh):
     ratio2 = 0.4
     hole_radius = 0.25
     nr0 = 32
-    outdir = 'pkls'
+    outdir = None
     use_concentrated_force = False
 
     force_magnitude = 25.0  # total force applied to structure
     forced_portion = 0.2  # portion of the edge of which load is applied to
+    MBB_bc_portion = 0.1
     ly = 1.0  # for this project we always set height of domain to be 1.0
     density = 2700.0  # this is only used for frequency analysis
     E = 70e3  # Young's modulus
@@ -34,7 +35,7 @@ def generate_pkls(ns, ARs, plot_mesh):
                             preproc(n, AR, prob, meshtype, ratio1, ratio2,
                             use_concentrated_force, use_hole, hole_radius,
                             nr0, outdir, plot_mesh, force_magnitude,
-                            forced_portion, ly, density, E, nu)
+                            forced_portion, MBB_bc_portion, ly, density, E, nu)
 
 if __name__ == '__main__':
 
