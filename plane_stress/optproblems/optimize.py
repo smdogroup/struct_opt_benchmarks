@@ -455,8 +455,48 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
     analysis.plot_topology(x_opt, savefig=True, filename=topo_name)
     analysis.plot_stress(x_opt, savefig=True, filename=stress_name)
 
-    # Save extra information to pkl file
+    # Save design to pkl file
     prob_pkl['x'] = x_opt
+
+    # Save objective and constraint values to pkl file
+    if in_opt_problem == 'comp_min_mass_constr':
+        obj = prob.get_val('topo.c')[0]
+        con1 = prob.get_val('topo.m')[0] / full_mass*in_design_mass - 1.0
+        cons = [con1]
+
+    elif in_opt_problem == 'comp_min_massfreq_constr':
+        obj = prob.get_val('topo.c')[0]
+        con1 = prob.get_val('topo.m')[0] / full_mass*in_design_mass - 1.0
+        con2 = -prob.get_val('topo.freqc')[0]
+        cons = [con1, con2]
+
+    elif in_opt_problem == 'comp_min_massstress_constr':
+        obj = prob.get_val('topo.c')[0]
+        con1 = prob.get_val('topo.m')[0] / full_mass*in_design_mass - 1.0
+        con2 = prob.get_val('topo.ks_nodal_stress')[0]  - 1.0
+        cons = [con1, con2]
+
+    elif in_opt_problem == 'comp_min_massfreqstress_constr':
+        obj = prob.get_val('topo.c')[0]
+        con1 = prob.get_val('topo.m')[0] / full_mass*in_design_mass - 1.0
+        con2 = -prob.get_val('topo.freqc')[0]
+        con3 = prob.get_val('topo.ks_nodal_stress')[0]  - 1.0
+        cons = [con1, con2, con3]
+
+    elif in_opt_problem == 'stress_min_mass_constr':
+        obj = prob.get_val('topo.ks_nodal_stress')[0]
+        con1 = prob.get_val('topo.m')[0] / full_mass*in_design_mass - 1.0
+        cons = [con1]
+
+    elif in_opt_problem == 'mass_min_stress_constr':
+        obj = prob.get_val('topo.m')[0]
+        con1 = prob.get_val('topo.ks_nodal_stress')[0]  - 1.0
+        cons = [con1]
+
+    prob_pkl['obj'] = obj
+    prob_pkl['cons'] = cons
+
+    # Save extra information to pkl file
     prob_pkl['opt_time'] = '{:.2e} s'.format(t_end - t_start)
     prob_pkl['qval'] = in_qval
     prob_pkl['epsilon'] = in_epsilon
