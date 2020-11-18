@@ -5,7 +5,7 @@ try:
 except:
     print('\n[Warning] Cannot import tmr, unstructured mesh generator is unavailable!')
 
-def create_geo(AR, prob, forced_portion,
+def create_geo(AR, prob, forced_portion, MBB_bc_portion,
     ratio1, ratio2, use_hole, hole_radius):
 
     # Create the surface in the x-y plane
@@ -117,7 +117,7 @@ def create_geo(AR, prob, forced_portion,
 
         # Create the vertices on the surface
         v1 = TMR.VertexFromFace(face, 0.0, 0.0)
-        v2 = TMR.VertexFromFace(face, Lx*(1-forced_portion), 0.0)
+        v2 = TMR.VertexFromFace(face, Lx*(1-MBB_bc_portion), 0.0)
         v3 = TMR.VertexFromFace(face, Lx, 0.0)
         v4 = TMR.VertexFromFace(face, Lx, Ly)
         v5 = TMR.VertexFromFace(face, Lx*forced_portion, Ly)
@@ -125,8 +125,8 @@ def create_geo(AR, prob, forced_portion,
         verts = [v1, v2, v3, v4, v5, v6]
 
         # Set up the edges
-        pcurve1 = TMR.BsplinePcurve(np.array([[0.0, 0.0], [Lx*(1-forced_portion), 0.0]]))
-        pcurve2 = TMR.BsplinePcurve(np.array([[Lx*(1-forced_portion), 0.0], [Lx, 0.0]]))
+        pcurve1 = TMR.BsplinePcurve(np.array([[0.0, 0.0], [Lx*(1-MBB_bc_portion), 0.0]]))
+        pcurve2 = TMR.BsplinePcurve(np.array([[Lx*(1-MBB_bc_portion), 0.0], [Lx, 0.0]]))
         pcurve3 = TMR.BsplinePcurve(np.array([[Lx, 0.0], [Lx, Ly]]))
         pcurve4 = TMR.BsplinePcurve(np.array([[Lx, Ly], [Lx*forced_portion, Ly]]))
         pcurve5 = TMR.BsplinePcurve(np.array([[Lx*forced_portion, Ly], [0.0, Ly]]))
@@ -253,14 +253,14 @@ def create_geo(AR, prob, forced_portion,
 
     return geo
 
-def create_mesh(n, AR, prob, ratio1, ratio2, forced_portion,
+def create_mesh(n, AR, prob, ratio1, ratio2, forced_portion, MBB_bc_portion,
     force_magnitude, use_concentrated_force, use_hole, hole_radius):
 
     Ly = 1.0
     Lx = Ly*AR
 
     # Create tmr geometry object
-    geo = create_geo(AR, prob, forced_portion,
+    geo = create_geo(AR, prob, forced_portion, MBB_bc_portion,
         ratio1, ratio2, use_hole, hole_radius)
 
     # Create the mesh
@@ -312,7 +312,7 @@ def create_mesh(n, AR, prob, ratio1, ratio2, forced_portion,
     elif prob == 'michell':
         bcs = forest.getNodesWithName('6')
     elif prob == 'lbracket':
-        bcs = forest.getNodesWithName('7')
+        bcs = forest.getNodesWithName('6')
 
     # Create the vars array with the number of nodes
     nnodes = np.max(conn)+1
@@ -418,16 +418,18 @@ def create_mesh(n, AR, prob, ratio1, ratio2, forced_portion,
 
         if use_concentrated_force:
 
-            north_west_corner_node = -1
-            xpos = X[0, 0]
-            ypos = X[0, 0]
+            distance = Lx**2 + Ly**2
+            xtarget = 0
+            ytarget = Ly
+            north_west_node = -1
             for i in range(nnodes):
-                if X[i, 0] <= xpos and X[i, 1] >= ypos:
-                    north_west_corner_node = i
-                    xpos = X[i, 0]
-                    ypos = X[i, 1]
+                xpos = X[i, 0]
+                ypos = X[i, 1]
+                if (xpos-xtarget)**2 + (ypos-ytarget)**2 <= distance:
+                    north_west_node = i
+                    distance = (xpos-xtarget)**2 + (ypos-ytarget)**2
 
-            force[dof[north_west_corner_node, 1]] = -force_magnitude
+            force[dof[north_west_node, 1]] = -force_magnitude
 
         else:
 

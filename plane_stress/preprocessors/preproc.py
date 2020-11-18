@@ -57,7 +57,7 @@ import os
 def preproc(n, AR, prob, meshtype, ratio1, ratio2,
     use_concentrated_force, use_hole, hole_radius,
     nr0, outdir, plot_mesh, force_magnitude,
-    forced_portion, ly, density, E, nu):
+    forced_portion, MBB_bc_portion, ly, density, E, nu):
 
     # Check input values
     if hole_radius >= 0.5:
@@ -127,8 +127,8 @@ def preproc(n, AR, prob, meshtype, ratio1, ratio2,
 
         nelems, nnodes, ndof, conn, X, dof, force = create_mesh(
             n, AR, prob, ratio1, ratio2,
-            forced_portion, force_magnitude, use_concentrated_force,
-            use_hole, hole_radius)
+            forced_portion, MBB_bc_portion, force_magnitude,
+            use_concentrated_force, use_hole, hole_radius)
 
     else:
         # ndof, conn, X, dof
@@ -190,7 +190,7 @@ def preproc(n, AR, prob, meshtype, ratio1, ratio2,
                     for i in range(nx+1):
                         X[i + j*(nx+1), 0] = lx*i/nx
                         X[i + j*(nx+1), 1] = ly*j/ny
-                        if i > round(nx*(1-forced_portion)) and j == 0:
+                        if i > round(nx*(1-MBB_bc_portion)) and j == 0:
                             dof[i + j*(nx+1), 0] = ndof
                             ndof += 1
                         elif i == 0:
@@ -327,6 +327,7 @@ if __name__ == '__main__':
     # Set up constants
     force_magnitude = 25.0  # total force applied to structure
     forced_portion = 0.2  # portion of the edge of which load is applied to
+    MBB_bc_portion = 0.1  # portion of the right-bottom corner where bc is applied to
     ly = 1.0  # for this project we always set height of domain to be 1.0
     density = 2700.0  # material density
     E = 70e3  # Young's modulus
@@ -337,4 +338,4 @@ if __name__ == '__main__':
     args.ratio1, args.ratio2,args.use_concentrated_force,
     args.use_hole, args.hole_radius, args.nr0,
     args.outdir, args.no_plot_mesh, force_magnitude,
-    forced_portion, ly, density, E, nu)
+    forced_portion, MBB_bc_portion, ly, density, E, nu)
