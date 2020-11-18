@@ -1,6 +1,6 @@
 # First, import fortran analysis library
 try:
-    from plane_stress import analysis_lib
+    from plane_stress import plane_lib
 except ImportError:
     raise ImportError("\nAnalysis library is missing, please compile fortran code first!\n")
 

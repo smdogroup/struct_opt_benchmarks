@@ -1,7 +1,7 @@
 import numpy as np
 import openmdao.api as om
 import matplotlib.pylab as plt
-from plane_stress import analysis_lib
+from plane_stress import plane_lib
 from scipy import sparse
 from scipy.sparse import linalg
 from scipy.spatial import KDTree
@@ -53,11 +53,11 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         cols = np.zeros(1, dtype=np.intc)
 
         # Compute the dimension of the cols array required
-        ncols = analysis_lib.computenzpattern(conn.T, dof.T, rowp, cols)
+        ncols = plane_lib.computenzpattern(conn.T, dof.T, rowp, cols)
 
         # Allocate the required dimension of the cols array
         cols_temp = np.zeros(ncols, dtype=np.intc)
-        analysis_lib.computenzpattern(self.conn.T, self.dof.T, rowp, cols_temp)
+        plane_lib.computenzpattern(self.conn.T, self.dof.T, rowp, cols_temp)
 
         # Truncate the cols array to only include
         self.cols = np.zeros(rowp[-1], dtype=np.intc)
@@ -164,7 +164,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         we always use density = 1.0 here
         """
 
-        mass = analysis_lib.computemass(self.conn.T, self.X.T, x)
+        mass = plane_lib.computemass(self.conn.T, self.X.T, x)
 
         return mass
 
@@ -173,7 +173,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         Compute the derivative of the mass
         """
         dmdx = np.zeros(x.shape)
-        analysis_lib.computemassderiv(self.conn.T, self.X.T, dmdx)
+        plane_lib.computemassderiv(self.conn.T, self.X.T, dmdx)
 
         return dmdx
 
@@ -184,7 +184,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         density = 1.0 here
         """
 
-        inertia = analysis_lib.computemomofinertia(
+        inertia = plane_lib.computemomofinertia(
             self.conn.T, self.X.T, x)
 
         return inertia
@@ -196,7 +196,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         """
 
         dinertiadx = np.zeros(x.shape)
-        analysis_lib.computemomofinertiaderiv(
+        plane_lib.computemomofinertiaderiv(
             self.conn.T, self.X.T, x, dinertiadx)
 
         return dinertiadx
@@ -211,7 +211,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         rho = self.F.dot(x)
 
         # Compute the stiffness matrix
-        analysis_lib.computekmat(self.conn.T, self.dof.T, self.X.T,
+        plane_lib.computekmat(self.conn.T, self.dof.T, self.X.T,
             self.qval, self.C.T, rho, self.rowp, self.cols, self.Kvals)
 
         # Form the matrix
@@ -249,7 +249,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         # variables
         dKdrho = np.zeros(x.shape)
 
-        analysis_lib.computekmatderiv(self.conn.T, self.dof.T, self.X.T,
+        plane_lib.computekmatderiv(self.conn.T, self.dof.T, self.X.T,
             self.qval, self.C.T, rho, self.u, self.u, dKdrho)
 
         # Now evaluate the effect of the filter
@@ -269,7 +269,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         rho = self.F.dot(x)
 
         # Compute the stiffness matrix
-        analysis_lib.computekmat(self.conn.T, self.dof.T, self.X.T,
+        plane_lib.computekmat(self.conn.T, self.dof.T, self.X.T,
             self.qval, self.C.T, rho, self.rowp, self.cols, self.Kvals)
 
         # Form the matrix
@@ -283,7 +283,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
 
         # Compute nodal stress
         stress = np.zeros(self.nnodes)
-        analysis_lib.computenodalstress(self.surelems, self.nsurelems,
+        plane_lib.computenodalstress(self.surelems, self.nsurelems,
             self.conn.T, self.dof.T, self.X.T, self.epsilon,
             self.C.T, self.u, rho, stress)
 
@@ -334,7 +334,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         # Compute derivative of ks w.r.t. quadrature stress
         dksds = np.zeros(4*nelems)
         dksdns = self.nodaletas
-        analysis_lib.computenodalstressderiv(self.surelems, self.nsurelems,
+        plane_lib.computenodalstressderiv(self.surelems, self.nsurelems,
             self.conn.T, self.X.T, dksdns, dksds)
 
         # Compute the derivative of nodal stress w.r.t. quadrature stress
@@ -342,7 +342,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
 
         # Compute dfdu
         dfdu = np.zeros(self.ndof)
-        analysis_lib.computestressstatederiv(self.conn.T, self.dof.T, self.X.T,
+        plane_lib.computestressstatederiv(self.conn.T, self.dof.T, self.X.T,
             self.epsilon, self.C.T, self.u, rho, dksds.T, dfdu)
 
         # Compute the adjoint variables
@@ -350,12 +350,12 @@ class PlaneStressAnalysis(om.ExplicitComponent):
 
         # Compute derivative of ks w.r.t. design variable
         dfdrho = np.zeros(nnodes)
-        analysis_lib.computestressderiv(self.conn.T, self.dof.T, self.X.T,
+        plane_lib.computestressderiv(self.conn.T, self.dof.T, self.X.T,
             self.epsilon, self.C.T, self.u, rho, dksds.T, dfdrho)
 
         # Compute the total derivative
         temp = np.zeros(self.nnodes)
-        analysis_lib.computekmatderiv(self.conn.T, self.dof.T, self.X.T,
+        plane_lib.computekmatderiv(self.conn.T, self.dof.T, self.X.T,
             self.qval, self.C.T, rho, psi, self.u, temp)
 
         # Compute the remainder of the total derivative
@@ -382,9 +382,9 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         rho = self.F.dot(x)
 
         # Compute the stiffness matrix
-        analysis_lib.computekmat(self.conn.T, self.dof.T, self.X.T,
+        plane_lib.computekmat(self.conn.T, self.dof.T, self.X.T,
             self.qval, self.C.T, rho, self.rowp, self.cols, self.Kvals)
-        analysis_lib.computemmat(self.conn.T, self.dof.T, self.X.T,
+        plane_lib.computemmat(self.conn.T, self.dof.T, self.X.T,
             self.density, rho, self.rowp, self.cols, self.Mvals)
 
         # Compute the A-matrix
@@ -426,12 +426,12 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         for i in range(self.num_eigs):
             # Compute the derivative of d(eigvec^{T}*K(x)*eigvec)
             psi = self.eigvecs[:,i]
-            analysis_lib.computekmatderiv(self.conn.T, self.dof.T, self.X.T,
+            plane_lib.computekmatderiv(self.conn.T, self.dof.T, self.X.T,
                 self.qval, self.C.T, rho, psi.T, psi.T, temp)
             dfreqcdx += self.etaf[i]*temp
 
             # Compute the derivative of d(eigvec^{T}*M(x)*eigvec)
-            analysis_lib.computemmatderiv(self.conn.T, self.dof.T, self.X.T,
+            plane_lib.computemmatderiv(self.conn.T, self.dof.T, self.X.T,
                 self.density, psi.T, psi.T, temp)
             lambda0 = (2.0*np.pi*self.design_freq)**2
             dfreqcdx -= lambda0*self.etaf[i]*temp
@@ -448,9 +448,9 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         rho = self.F.dot(x)
 
         # Compute the stiffness and mass matrix
-        analysis_lib.computekmat(self.conn.T, self.dof.T, self.X.T,
+        plane_lib.computekmat(self.conn.T, self.dof.T, self.X.T,
             self.qval, self.C.T, rho, self.rowp, self.cols, self.Kvals)
-        analysis_lib.computemmat(self.conn.T, self.dof.T, self.X.T,
+        plane_lib.computemmat(self.conn.T, self.dof.T, self.X.T,
             self.density, rho, self.rowp, self.cols, self.Mvals)
         Kmat = sparse.csr_matrix((self.Kvals, self.cols, self.rowp),
                                  shape=(self.ndof, self.ndof))
