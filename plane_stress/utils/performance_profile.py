@@ -2,6 +2,36 @@
 
 """
 This script generates performance profiler(s) given a batch of cases.
+
+First, we define some terminologies. Usually, a batch of cases consist
+of multiple dimensions, e.g. meshsize, meshtype, domain shape, etc. Also
+for a same physical problem with identical geometry, mesh and boundary
+condition, we could formulate different optimization problems with different
+objective and constraint(s) of interest.
+
+Thus, a case can vary in the following three categories:
+    - physical problem
+    - optimization problem
+    - optimizer
+
+where,
+    1. physical problem defines meshtype (structured, unstructured),
+       problem type (cantilever, michell, MBB, lbracket), Aspect
+       Ratio (1.0, 2.0, 3.0) and whether there is a hole in domain or not.
+       In our implementation, we use preprocessor script to generate physical
+       problem, and save information in python pickle file *.pkl.
+
+    2. optimization problem contains physical problem too, besides, it also
+       defines objective and constraint(s), we
+       currently implemented 6 optimization problems:
+       - comp_min_mass_constr
+       - comp_min_massfreq_constr
+       - comp_min_massstress_constr
+       - comp_min_massfreqstress_constr
+       - stress_min_mass_constr
+       - mass_min_stress_constr
+
+    3. optimizer decides optimization settings, which algorithm to use, etc.
 """
 
 import numpy as np
@@ -9,6 +39,7 @@ import argparse
 import os
 import pickle
 import matplotlib.pyplot as plt
+from pprint import pprint
 
 # Define colors
 colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
@@ -27,13 +58,15 @@ optimizers = ['ParOpt',
 # Parser
 p = argparse.ArgumentParser()
 p.add_argument('--result_folder', type=str, default='results')
-p.add_argument('--opt_problem', nargs='*', type=str, default=None, choices=[
+p.add_argument('--opt_problem', nargs='*', type=str, default=['all'], choices=[
     'all', 'comp_min_mass_constr', 'comp_min_massfreq_constr',
     'comp_min_massstress_constr', 'comp_min_massfreqstress_constr',
     'stress_min_mass_constr', 'mass_min_stress_constr'])
 p.add_argument('--metric', type=str, default='obj', choices=['obj', 'time'])
 p.add_argument('--infeas_tol', type=float, default=1e-4)
-p.add_argument('--showfig', action='store_true')
+p.add_argument('--metric_limit', type=float, default=2.0,
+    help='cases with metrics larger than this limit are considered failed')
+p.add_argument('--plot', action='store_true')
 args = p.parse_args()
 
 # Get problem list
@@ -43,17 +76,13 @@ if 'all' in args.opt_problem:
 else:
     opt_problems = args.opt_problem
 
-# Input value check
-if args.opt_problem is None:
-    raise ValueError("\n At least one problem need to be specified using --opt_problem!")
-
 # Get which performance metric to use
 if args.metric == 'obj':
     metric = 'obj'
 elif args.metric == 'time':
     metric = 'opt_time'
 
-# Store all folder names
+# Store all folder names in results/ folder
 case_folders = []
 
 # Store all domain names, which is the same as the name of mesh pickle
@@ -67,8 +96,12 @@ for opt_problem in opt_problems:
             if folder_in_results.replace(opt_problem+'-','') not in case_domains:
                 case_domains.append(folder_in_results.replace(opt_problem+'-',''))
 
-# Get total number of different optimization problems
+# Since each folder contains all cases for one specific optimization problem,
+# we get total number of different optimization problems by the following
 nprobs = len(case_folders)
+
+# We also want to keep track of number of valid problems, nvalids <= nprobs
+nvalids = 0
 
 # Use dictionary to store objective and max infeasibility for each optimizer
 optimizer_data = dict()
@@ -86,76 +119,93 @@ for optimizer in optimizers:
 prob_index = 0
 for case_folder in case_folders:
 
-    # Loop over each files
-    for f in os.listdir(args.result_folder+'/'+case_folder):
+    # Store all pkl files
+    pkl_files = []
 
-        # We only need result pkl files
-        if os.path.splitext(f)[1] == '.pkl':
+    # Loop over files in each case folder
+    for case_file in os.listdir(args.result_folder+'/'+case_folder):
 
-            # Get optimizer related to this pkl
-            optimizer_used = f.split('-')[1]
+        # Gget name of all pkl files:
+        if os.path.splitext(case_file)[1] == '.pkl':
+            pkl_files.append(case_file)
 
-            with open('{:s}/{:s}/{:s}'.format(
-                args.result_folder, case_folder, f), 'rb') as pklfile:
-                prob_pkl = pickle.load(pklfile)
+    # If number of pkls is less than number of optimizers, we skip this optimization
+    # problem
+    if len(pkl_files) < len(optimizers):
+        continue
+    else:
+        nvalids += 1
 
-                # Optimization time is stored as string in pkl, we convert it to time
-                # in case time is used as metric
-                prob_pkl['opt_time'] = float(prob_pkl['opt_time'][:-1])
+    # Next, loop over each pkl to get metric and infeas
+    for pkl_file in pkl_files:
 
-                # Load obj/time
-                try:
-                    metricval = float(prob_pkl[metric])
-                    optimizer_data[optimizer_used]['metric'][prob_index] = metricval
-                except:
-                    pass
+        # Get optimizer name
+        optimizer = pkl_file.split('-')[1]
 
-                # Load maximum normalized constraint violation
-                # TODO: fix constraint in optimize
-                try:
-                    # We read constraints from text output file
-                    if 'ParOpt' in optimizer:
-                        textout = '{:s}/{:s}/{:s}.tr'.format(args.result_folder, case_folder,
-                            os.path.splitext(f)[0])
-                        with open(textout, 'r') as ff:
-                            for line in ff:
-                                pass
-                            infeas = float(line.split()[2])
-                    else:
-                        textout = '{:s}/{:s}/{:s}.out'.format(args.result_folder, case_folder,
-                            os.path.splitext(f)[0])
-                        if optimizer == 'IPOPT':
-                            with open(textout, 'r') as ff:
-                                for line in ff:
-                                    if 'Constraint violation....:' in line:
-                                        infeas = float(line.split()[-1])
-                                        break
-                        elif optimizer == 'SNOPT':
-                            with open(textout, 'r') as ff:
-                                for line in ff:
-                                    if 'Nonlinear constraint violn' in line:
-                                        infeas = float(line.split()[-1])
-                                        break
-                    optimizer_data[optimizer_used]['infeas'][prob_index] = infeas
-                    if optimizer_data[optimizer_used]['infeas'][prob_index] > args.infeas_tol:
-                        optimizer_data[optimizer_used]['metric'][prob_index] = None
-                except:
-                    optimizer_data[optimizer_used]['metric'][prob_index] = None
+        # Load pkl
+        with open('{:s}/{:s}/{:s}'.format(
+            args.result_folder, case_folder, pkl_file), 'rb') as p:
+            pkl_dict = pickle.load(p)
 
-                # print metric, infeas and file name to output for checking purpose
-                try:
-                    print("{:s}/{:s}/{:s}\nmetric: {:e}  infeas: {:e}".format(
-                        args.result_folder, case_folder, f, metricval, infeas))
-                except:
-                    pass
+            # Optimization time is stored as string in pkl, we convert it to time
+            # in case time is used as metric
+            pkl_dict['opt_time'] = float(pkl_dict['opt_time'][:-1])
 
-    # Now normalize the metric against the best one
-    metrics = [optimizer_data[key]['metric'][prob_index] for key in optimizers]
-    values = [val for val in metrics if type(val) is float]
+            # Load obj/time
+            try:
+                optimizer_data[optimizer]['metric'][prob_index] = float(pkl_dict[metric])
+
+            except Exception as e:
+                print("\n[Warning] cannot load pkl file:\n{:s}/{:s}/{:s}".format(
+                    args.result_folder, case_folder, pkl_file))
+                print("Error message:", e)
+
+            # Load maximum normalized constraint violation
+            # TODO: fix constraint in optimize
+            # We read constraints from text output file
+            if 'ParOpt' in optimizer:
+                textout = '{:s}/{:s}/{:s}.tr'.format(args.result_folder, case_folder,
+                    os.path.splitext(pkl_file)[0])
+                with open(textout, 'r') as ff:
+                    for line in ff:
+                        pass
+                    infeas = float(line.split()[2])
+            else:
+                textout = '{:s}/{:s}/{:s}.out'.format(args.result_folder, case_folder,
+                    os.path.splitext(pkl_file)[0])
+                if optimizer == 'IPOPT':
+                    with open(textout, 'r') as ff:
+                        for line in ff:
+                            if 'Constraint violation' in line:
+                                infeas = float(line.split()[-1])
+                                break
+                elif optimizer == 'SNOPT':
+                    with open(textout, 'r') as ff:
+                        for line in ff:
+                            if 'Nonlinear constraint violn' in line:
+                                infeas = float(line.split()[-1])
+                                break
+
+            optimizer_data[optimizer]['infeas'][prob_index] = infeas
+
+            print('-----------------------------------------------------------')
+            print('[pkl] {:s}/{:s}/{:s}'.format(args.result_folder, case_folder, pkl_file))
+            print('[obj] {:f}'.format(optimizer_data[optimizer]['metric'][prob_index]))
+            print('[con] {:f}'.format(optimizer_data[optimizer]['infeas'][prob_index]))
+
+            if optimizer_data[optimizer]['infeas'][prob_index] > args.infeas_tol:
+                optimizer_data[optimizer]['metric'][prob_index] = None
+
+    # Now we've get all data needed in this problem folder
+    # Next, normalize the metric against the best one
+    metrics = [ optimizer_data[key]['metric'][prob_index] for key in optimizers if
+        optimizer_data[key]['metric'][prob_index] is not None ]
+
+    best = min(metrics)
 
     for optimizer in optimizers:
-        if type(optimizer_data[optimizer]['metric'][prob_index]) is float:
-            best = min(values)
+
+        if optimizer_data[optimizer]['metric'][prob_index] is not None:
             optimizer_data[optimizer]['metric'][prob_index] /= best
 
     prob_index += 1
@@ -163,41 +213,35 @@ for case_folder in case_folders:
 # Now we can plot the profiler
 fig, ax1 = plt.subplots()
 
-# One curve for each optimizer
-x_lim = 0.0
-for optimizer in optimizers:
-    sorted_metrics = sorted([optimizer_data[optimizer]['metric'][i] for i in range(nprobs)
-        if type(optimizer_data[optimizer]['metric'][i]) is float])
-    percentiles = np.linspace(1, len(sorted_metrics), len(sorted_metrics))
-    percentiles /= nprobs
-
-    optimizer_data[optimizer]['sorted_metrics'] = sorted_metrics
-    optimizer_data[optimizer]['percentiles'] = percentiles
-
-    try:
-        if max(sorted_metrics) > x_lim:
-            x_lim = max(sorted_metrics)
-    except:
-        pass
-
 index = 0
 for optimizer in optimizers:
-    optimizer_data[optimizer]['sorted_metrics'].append(x_lim)
-    optimizer_data[optimizer]['percentiles'] = np.append(optimizer_data[optimizer]['percentiles'],
-        optimizer_data[optimizer]['percentiles'][-1])
 
-    ax1.step(optimizer_data[optimizer]['sorted_metrics'],
-             optimizer_data[optimizer]['percentiles'],
-             label=optimizer, color=colors[index])
+    # We sort all valid normalized metrics for current optimizer
+    sorted_metrics = sorted([ optimizer_data[optimizer]['metric'][i] for i in range(nprobs)
+        if optimizer_data[optimizer]['metric'][i] is not None ])
+
+    # We compute percentile based on actual total number of cases
+    percentiles = [ (sorted_metrics.index(i) + 1 ) / nvalids for i in sorted_metrics ]
+
+    # Append one more entry so that we will have a flat curve till right end
+    sorted_metrics.append(args.metric_limit)
+    if percentiles:
+        percentiles.append(percentiles[-1])
+    else:
+        percentiles.append(0.0)
+    # Plot
+    ax1.step(sorted_metrics, percentiles, label=optimizer, color=colors[index])
 
     index += 1
 
 ax1.set_xlabel('Normalized objective')
 ax1.set_ylabel('Percentage of cases')
+ax1.set_xlim([1.0, args.metric_limit])
 plt.title('Performance profiler')
 plt.legend()
+plt.show()
 
-if args.showfig:
+if args.plot:
     plt.show()
 else:
     name = 'profiler'
