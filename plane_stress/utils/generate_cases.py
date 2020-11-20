@@ -45,7 +45,7 @@ p.add_argument('--opt_problem', nargs='*', type=str, default=None, choices=[
     'comp_min_massstress_constr', 'comp_min_massfreqstress_constr',
     'stress_min_mass_constr', 'mass_min_stress_constr'])
 p.add_argument('--optimizer', nargs='*', type=str, default=None, choices=[
-    'all', 'ParOpt', 'ParOptAdapt', 'ParOptFilter', 
+    'all', 'ParOpt', 'ParOptAdapt', 'ParOptFilter',
     'ParOptFilterSoc', 'SNOPT', 'IPOPT'])
 p.add_argument('--walltime', type=int, default=5, help='walltime requested in hours')
 args = p.parse_args()
@@ -81,14 +81,14 @@ new_cases = 0
 # Get optimization problem and optimizer list from input
 opt_problems = args.opt_problem
 if 'all' in args.optimizer:
-    optimizers = ['ParOpt', 'ParOptAdapt', 'ParOptFilter', 
+    optimizers = ['ParOpt', 'ParOptAdapt', 'ParOptFilter',
         'ParOptFilterSoc', 'SNOPT', 'IPOPT']
 else:
     optimizers = args.optimizer
 
 # Define corresponding optimizer options here
 optimizer_setting = {
-    'ParOpt':'ParOpt', 
+    'ParOpt':'ParOpt',
     'ParOptAdapt':'ParOpt --ParOpt_use_adaptive_gamma_update',
     'ParOptFilter':'ParOpt --ParOpt_use_filter',
     'ParOptFilterSoc':'ParOpt --ParOpt_use_filter --ParOpt_use_soc',
@@ -104,10 +104,10 @@ except:
 # Create placeholder folders for all cases
 for opt_problem in opt_problems:
     for pkl in pkls:
-        
-        # folder name = pkl name + opt_problem 
+
+        # folder name = pkl name + opt_problem
         casefolder = 'results/{:s}-{:s}'.format(opt_problem, os.path.splitext(pkl)[0])
-        
+
         # Make directory if does not exist
         try:
             os.mkdir(casefolder)
@@ -125,18 +125,18 @@ with open('cases.sh', 'w') as f:
     for opt_problem in opt_problems:
         for optimizer in optimizers:
             for pkl in pkls:
-                
+
                 total_required_cases += 1
-            
+
                 # Write the case to runcases script only if there
                 # is no result pkl file for that case
-            
+
                 caseExists = False
                 for current_file in current_files:
                     if ('.pkl' in current_file and
                         opt_problem in current_file and
                         optimizer in current_file and
-                        '-'+os.path.splitext(pkl)[0]+'-q' in current_file): 
+                        '-'+os.path.splitext(pkl)[0]+'-q' in current_file):
                         caseExists = True
                         existing_cases += 1
                         break
@@ -150,7 +150,7 @@ with open('cases.sh', 'w') as f:
                         hole = 'hole'
                     else:
                         hole = 'nohole'
-                    
+
                     # set output directory
                     outdir = 'results/{:s}-{:s}'.format(opt_problem, os.path.splitext(pkl)[0])
 
@@ -158,7 +158,7 @@ with open('cases.sh', 'w') as f:
                         design_freq = '--design_freq {:.3f}'.format(base_freqs[meshtype][domain][AR]*freq_ratio)
                     else:
                         design_freq = '--design_freq {:.3f}'.format(base_freqs[meshtype][domain][AR][hole]*freq_ratio)
-                    
+
                     if opt_problem == 'comp_min_mass_constr':
                         line = '{:s} pkls/{:s} {:s} {:s} --outdir {:s} {:s} {:s}\n'.format(
                             optimize, pkl, opt_problem, optimizer_setting[optimizer], outdir, qval_ks_epsilon_iter, design_mass)
@@ -182,21 +182,21 @@ with open('cases.sh', 'w') as f:
                     elif opt_problem == 'mass_min_stress_constr':
                         line = '{:s} pkls/{:s} {:s} {:s} --outdir {:s} {:s} {:s}\n'.format(
                             optimize, pkl, opt_problem, optimizer_setting[optimizer], outdir, qval_ks_epsilon_iter, design_stress)
-                    
+
                     f.write(line)
                     new_cases += 1
 
 # Partition run case script if specified:
 if args.npart > 1:
-    
+
     # read in all lines in cases.sh
     with open('cases.sh', 'r') as f:
         cases_sh_lines = f.readlines()
-    
+
     # Generate partitioned scripts
     for i in range(args.npart):
         part_name = 'cases_part{:d}.sh'.format(i+1)
-        
+
         # Create partitioned scripts
         with open(part_name, 'w') as f:
             f.write('#This is part {:d} / {:d}\n'.format(i+1, args.npart))
@@ -205,12 +205,12 @@ if args.npart > 1:
     counter = 0
     for line in cases_sh_lines:
         part_name = 'cases_part{:d}.sh'.format(counter % args.npart + 1)
-        
+
         with open(part_name, 'a') as f:
             f.write(line)
-        
+
         counter += 1
-        
+
     # Generate PBS script
     for i in range(args.npart):
         pbs_name = 'cases_part{:d}.pbs'.format(i+1)
