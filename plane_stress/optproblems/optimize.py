@@ -377,7 +377,8 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
                 'tr_steering_barrier_strategy':
                     'mehrotra_predictor_corrector',
                 'tr_steering_starting_point_strategy': 'affine_step',
-                'use_line_search': False}
+                'use_line_search': False,
+                'max_major_iters': 200}
             for key in options:
                 prob.driver.options[key] = options[key]
 
