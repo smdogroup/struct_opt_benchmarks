@@ -41,10 +41,16 @@ import pickle
 import matplotlib.pyplot as plt
 from pprint import pprint
 
-# Define colors
+# Set font property
+font = 'Arial'
+fontsize = 8
+
+# Define style
 colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
         '#9467bd', '#8c564b', '#e377c2', '#7f7f7f',
         '#bcbd22', '#17becf']
+
+linestyles = ['-', '--', '-.', ':']
 
 # Name of all optimizers
 optimizers = ['ParOpt',
@@ -54,6 +60,16 @@ optimizers = ['ParOpt',
               'IPOPT',
               'SNOPT',
               ]
+
+legends = {
+    'ParOpt': 'ParOpt-sl1qp',
+    'ParOptFilter': 'ParOpt-filterSQP',
+    'ParOptFilterSoc': 'ParOpt-filterSQP-SOC',
+    'ParOptAdapt': 'ParOpt-sl1qp-adaptive',
+    'IPOPT': 'IPOPT',
+    'SNOPT': 'SNOPT',
+
+}
 
 # Parser
 p = argparse.ArgumentParser()
@@ -211,7 +227,8 @@ for case_folder in case_folders:
     prob_index += 1
 
 # Now we can plot the profiler
-fig, ax1 = plt.subplots()
+fig = plt.figure(dpi=300)
+ax1 = plt.gca()
 
 index = 0
 for optimizer in optimizers:
@@ -230,16 +247,29 @@ for optimizer in optimizers:
     else:
         percentiles.append(0.0)
     # Plot
-    ax1.step(sorted_metrics, percentiles, label=optimizer, color=colors[index])
+    ax1.step(sorted_metrics, percentiles, label=legends[optimizer],
+        color=colors[index], linestyle=linestyles[index % 4], lw=1.0)
 
     index += 1
 
-ax1.set_xlabel('Normalized objective')
-ax1.set_ylabel('Percentage of cases')
+if len(opt_problems) == 4:
+    title = 'Performance Profiler on Full 2D Problem Set'
+
+elif len(opt_problems) == 1:
+    title = 'Performance Profiler on Problem Set: {:s}'.format(opt_problems[0])
+
+else:
+    title = 'Performance Profiler'
+
 ax1.set_xlim([1.0, args.metric_limit])
-plt.title('Performance profiler')
-plt.legend()
-plt.show()
+ax1.set_ylim([0.0, 1.0])
+ax1.set_xlabel('Normalized objective', fontdict={'family':font, 'size':fontsize})
+ax1.set_ylabel('Percentage of cases', fontdict={'family':font, 'size':fontsize})
+ax1.tick_params(direction='in')
+plt.xticks(fontproperties=font, fontsize=fontsize)
+plt.yticks(np.arange(0.0, 1.05, step=0.1), fontproperties=font, fontsize=fontsize)
+plt.title(title, fontdict={'family':font, 'size':fontsize})
+plt.legend(loc='lower right', framealpha=0.0, prop={'family':font, 'size':fontsize})
 
 if args.plot:
     plt.show()
