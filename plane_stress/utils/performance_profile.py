@@ -132,6 +132,8 @@ for case_folder in case_folders:
     # If number of pkls is less than number of optimizers, we skip this optimization
     # problem
     if len(pkl_files) < len(optimizers):
+        print('[Warning] Missing cases in the following folder!\n{:s}/{:s}'.format(
+            args.result_folder, case_folder))
         continue
     else:
         nvalids += 1
@@ -201,7 +203,14 @@ for case_folder in case_folders:
     metrics = [ optimizer_data[key]['metric'][prob_index] for key in optimizers if
         optimizer_data[key]['metric'][prob_index] is not None ]
 
-    best = min(metrics)
+    if metrics:
+        # compute best over all optimziers if metrics is not empty
+        best = min(metrics)
+    else:
+        # Otherwise, give a dummy quantity to best
+        best = 1.0
+        print('[Warning] No feasible cases in the following folder!\n{:s}/{:s}'.format(
+            args.result_folder, case_folder))
 
     for optimizer in optimizers:
 
