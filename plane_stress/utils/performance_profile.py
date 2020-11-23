@@ -41,17 +41,6 @@ import pickle
 import matplotlib.pyplot as plt
 from pprint import pprint
 
-# Set font property
-font = 'Arial'
-fontsize = 8
-
-# Define style
-colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
-        '#9467bd', '#8c564b', '#e377c2', '#7f7f7f',
-        '#bcbd22', '#17becf']
-
-linestyles = ['-', '--', '-.', ':']
-
 # Name of all optimizers
 optimizers = ['ParOpt',
               'ParOptFilter',
@@ -62,12 +51,12 @@ optimizers = ['ParOpt',
               ]
 
 legends = {
-    'ParOpt': 'ParOpt-sl1qp',
-    'ParOptFilter': 'ParOpt-filterSQP',
-    'ParOptFilterSoc': 'ParOpt-filterSQP-SOC',
-    'ParOptAdapt': 'ParOpt-sl1qp-adaptive',
-    'IPOPT': 'IPOPT',
-    'SNOPT': 'SNOPT',
+    'ParOpt': r'ParOpt S$\ell_{1}$QP',
+    'ParOptFilter': r'ParOpt filterSQP',
+    'ParOptFilterSoc': r'ParOpt filterSQP w/ SOC',
+    'ParOptAdapt': r'ParOpt S$\ell_{1}$QP w/ adaptive',
+    'IPOPT': r'IPOPT',
+    'SNOPT': r'SNOPT',
 
 }
 
@@ -235,9 +224,10 @@ for case_folder in case_folders:
 
     prob_index += 1
 
-# Now we can plot the profiler
-fig = plt.figure(dpi=300)
-ax1 = plt.gca()
+# Set up plotting environment
+mpl_style_path = os.path.dirname(os.path.realpath(__file__)) + '/paper.mplstyle'
+plt.style.use(mpl_style_path)
+fig, ax = plt.subplots(1, 1, figsize=(6.4, 4.8))
 
 index = 0
 for optimizer in optimizers:
@@ -255,35 +245,36 @@ for optimizer in optimizers:
         percentiles.append(percentiles[-1])
     else:
         percentiles.append(0.0)
+
+    # Insert (1.0, 0.0) to beginning of lists so that we will have all curves
+    # starting from (1.0, 0.0)
+    sorted_metrics.insert(0, 1.0)
+    percentiles.insert(0, 0.0)
+
     # Plot
-    ax1.step(sorted_metrics, percentiles, label=legends[optimizer],
-        color=colors[index], linestyle=linestyles[index % 4], lw=1.0)
+    ax.step(sorted_metrics, percentiles, label=legends[optimizer])
 
     index += 1
 
 if len(opt_problems) == 4:
     title = 'Performance Profiler on Full 2D Problem Set'
-    name = 'performance-profiler-all.png'
+    name = 'performance-profiler-all.pdf'
 
 elif len(opt_problems) == 1:
     title = 'Performance Profiler on Problem Set: {:s}'.format(opt_problems[0])
-    name = 'performance-profiler-{:s}.png'.format(opt_problems[0])
+    name = 'performance-profiler-{:s}.pdf'.format(opt_problems[0])
 else:
     title = 'Performance Profiler'
     name = 'profiler'
     for prob in opt_problems:
         name += '-'+prob
-    name += '.png'
+    name += '.pdf'
 
-ax1.set_xlim([1.0, args.metric_limit])
-ax1.set_ylim([0.0, 1.0])
-ax1.set_xlabel('Normalized objective', fontdict={'family':font, 'size':fontsize})
-ax1.set_ylabel('Percentage of cases', fontdict={'family':font, 'size':fontsize})
-ax1.tick_params(direction='in')
-plt.xticks(fontproperties=font, fontsize=fontsize)
-plt.yticks(np.arange(0.0, 1.05, step=0.1), fontproperties=font, fontsize=fontsize)
-plt.title(title, fontdict={'family':font, 'size':fontsize})
-plt.legend(loc='lower right', framealpha=0.0, prop={'family':font, 'size':fontsize})
+ax.set_xlim([0.95, args.metric_limit])
+ax.set_ylim([0.0, 1.01])
+ax.set_xlabel('Normalized objective')
+ax.set_ylabel('Percentage of cases')
+plt.legend()
 
 if args.plot:
     plt.show()
