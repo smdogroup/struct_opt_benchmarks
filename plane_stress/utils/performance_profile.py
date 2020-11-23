@@ -43,18 +43,18 @@ from pprint import pprint
 
 # Name of all optimizers
 optimizers = ['ParOpt',
+              'ParOptAdapt',
               'ParOptFilter',
               'ParOptFilterSoc',
-              'ParOptAdapt',
               'IPOPT',
               'SNOPT',
               ]
 
 legends = {
     'ParOpt': r'ParOpt S$\ell_{1}$QP',
+    'ParOptAdapt': r'ParOpt S$\ell_{1}$QP w/ adaptive',
     'ParOptFilter': r'ParOpt filterSQP',
     'ParOptFilterSoc': r'ParOpt filterSQP w/ SOC',
-    'ParOptAdapt': r'ParOpt S$\ell_{1}$QP w/ adaptive',
     'IPOPT': r'IPOPT',
     'SNOPT': r'SNOPT',
 
