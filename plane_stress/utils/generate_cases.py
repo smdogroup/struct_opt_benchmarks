@@ -48,6 +48,7 @@ p.add_argument('--optimizer', nargs='*', type=str, default=None, choices=[
     'all', 'ParOpt', 'ParOptAdapt', 'ParOptFilter',
     'ParOptFilterSoc', 'SNOPT', 'IPOPT'])
 p.add_argument('--walltime', type=int, default=5, help='walltime requested in hours')
+p.add_argument('--max_iter', type=int, default=1000)
 args = p.parse_args()
 
 # Input value check
@@ -70,7 +71,7 @@ optimize = '~/git/struct_opt_benchmarks/plane_stress/optproblems/optimize.py'
 # Set some problem parameters to be constant
 design_mass = '--design_mass 0.4'
 design_stress = '--design_stress 0.9 --stress_as_fraction'
-qval_ks_epsilon_iter = '--qval 8.0 --epsilon 0.1 --ks_parameter 100.0 --max_iter 1000'
+qval_ks_epsilon_iter = '--qval 8.0 --epsilon 0.1 --ks_parameter 100.0 --max_iter {:d}'.format(args.max_iter)
 
 # Some other constants
 freq_ratio = 1.2
