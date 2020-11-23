@@ -161,7 +161,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
     def mass(self, x):
         """
         Compute the mass of the structure, since mass is linear,
-        we always use density = 1.0 here
+        we always use density = 1.0 here, i.e. mass = area
         """
 
         mass = plane_lib.computemass(self.conn.T, self.X.T, x)
@@ -772,20 +772,18 @@ if __name__ == '__main__':
     np.random.seed(0)
     x = np.random.rand(nnodes)
 
-    # compute mass and inertia
-    mass = analysis.mass(x)
-    inertia = analysis.inertia(x)
+    analysis.mass(x)
 
-    # Create openMDAO problem instance
-    prob = om.Problem()
-    indeps = prob.model.add_subsystem('indeps', om.IndepVarComp())
-    indeps.add_output('x', x)
-    prob.model.add_subsystem('topo', analysis)
-    prob.model.connect('indeps.x', 'topo.x')
+    # # Create openMDAO problem instance
+    # prob = om.Problem()
+    # indeps = prob.model.add_subsystem('indeps', om.IndepVarComp())
+    # indeps.add_output('x', x)
+    # prob.model.add_subsystem('topo', analysis)
+    # prob.model.connect('indeps.x', 'topo.x')
 
-    # Execute
-    prob.setup()
-    prob.run_model()
+    # # Execute
+    # prob.setup()
+    # prob.run_model()
 
-    # Check partials using finite difference
-    prob.check_partials()
+    # # Check partials using finite difference
+    # prob.check_partials()

@@ -263,12 +263,17 @@ for optimizer in optimizers:
 
 if len(opt_problems) == 4:
     title = 'Performance Profiler on Full 2D Problem Set'
+    name = 'performance-profiler-all.png'
 
 elif len(opt_problems) == 1:
     title = 'Performance Profiler on Problem Set: {:s}'.format(opt_problems[0])
-
+    name = 'performance-profiler-{:s}.png'.format(opt_problems[0])
 else:
     title = 'Performance Profiler'
+    name = 'profiler'
+    for prob in opt_problems:
+        name += '-'+prob
+    name += '.png'
 
 ax1.set_xlim([1.0, args.metric_limit])
 ax1.set_ylim([0.0, 1.0])
@@ -283,9 +288,5 @@ plt.legend(loc='lower right', framealpha=0.0, prop={'family':font, 'size':fontsi
 if args.plot:
     plt.show()
 else:
-    name = 'profiler'
-    for prob in opt_problems:
-        name += '-'+prob
-    name += '.png'
     plt.savefig(name)
     plt.close()
