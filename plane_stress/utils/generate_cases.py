@@ -168,6 +168,7 @@ with open('cases.sh', 'w') as f:
                             optimize, pkl, opt_problem, optimizer_setting[optimizer], outdir, qval_ks_epsilon_iter, design_mass, design_freq)
 
                     elif opt_problem == 'comp_min_massstress_constr':
+                        design_mass = '--design_mass 0.6'
                         line = '{:s} pkls/{:s} {:s} {:s} --outdir {:s} {:s} {:s} {:s}\n'.format(
                             optimize, pkl, opt_problem, optimizer_setting[optimizer], outdir, qval_ks_epsilon_iter, design_mass, design_stress)
 
