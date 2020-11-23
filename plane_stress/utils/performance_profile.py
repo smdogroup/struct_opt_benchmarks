@@ -122,6 +122,7 @@ for optimizer in optimizers:
 
 # Get objectives and max constraint violation for each problem for each optimizer
 prob_index = 0
+ninfeas = 0
 for case_folder in case_folders:
 
     # Store all pkl files
@@ -202,6 +203,7 @@ for case_folder in case_folders:
 
             if optimizer_data[optimizer]['infeas'][prob_index] > args.infeas_tol:
                 optimizer_data[optimizer]['metric'][prob_index] = None
+                ninfeas += 1
 
     # Now we've get all data needed in this problem folder
     # Next, normalize the metric against the best one
@@ -258,17 +260,17 @@ for optimizer in optimizers:
 
 if len(opt_problems) == 4:
     title = 'Performance Profiler on Full 2D Problem Set'
-    name = 'performance-profiler-all.pdf'
+    name = 'performance-profiler-all-tol-{:.0e}-ninfeas-{:d}.pdf'.format(args.infeas_tol, ninfeas)
 
 elif len(opt_problems) == 1:
     title = 'Performance Profiler on Problem Set: {:s}'.format(opt_problems[0])
-    name = 'performance-profiler-{:s}.pdf'.format(opt_problems[0])
+    name = 'performance-profiler-{:s}-tol-{:.0e}-ninfeas-{:d}.pdf'.format(opt_problems[0], args.infeas_tol, ninfeas)
 else:
     title = 'Performance Profiler'
     name = 'profiler'
     for prob in opt_problems:
         name += '-'+prob
-    name += '.pdf'
+    name += '-tol-{:.0e}-ninfeas-{:d}.pdf'.format(args.infeas_tol, ninfeas)
 
 ax.set_xlim([0.95, args.metric_limit])
 ax.set_ylim([0.0, 1.01])
