@@ -520,7 +520,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
 
         return
 
-    def plot_topology(self, x, savefig=False, filename='topology.png'):
+    def plot_topology(self, x, savefig=False, filename='topology.png', paperstyle=False):
         """
         Plot the topology of design x
         """
@@ -535,8 +535,17 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         pty = self.X[:,1]
         tri_obj = tri.Triangulation(ptx, pty, triangles)
 
+        length = max(ptx) - min(ptx)
+        height = max(pty) - min(pty)
+
+        fig_height = 4.8
+        fig_length = 4.8 * length / height
+
         # Plot the result as a figure
-        fig, ax = plt.subplots()
+        if paperstyle:
+            fig, ax = plt.subplots(figsize=(fig_length, fig_height), constrained_layout=True)
+        else:
+            fig, ax = plt.subplots(figsize=(6.4, 5.0))
 
         # Set the aspect ratio equal
         ax.set_aspect('equal')
@@ -551,12 +560,16 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         # Create the contour plot
         rho = self.F.dot(x[:])
         cntr = ax.tricontourf(tri_obj, rho, cmap='coolwarm')
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="5%", pad=0.05)
-        fig.colorbar(cntr, cax=cax)
-        fig.set_size_inches(6.4,5.0)
-        fig.subplots_adjust(top=0.80)
-        fig.subplots_adjust(bottom=0.02)
+
+        if not paperstyle:
+            fig.subplots_adjust(top=0.80)
+            fig.subplots_adjust(bottom=0.02)
+
+        # Set colorbar
+        if not paperstyle:
+            divider = make_axes_locatable(ax)
+            cax = divider.append_axes("right", size="5%", pad=0.05)
+            fig.colorbar(cntr, cax=cax)
 
         # Compute compliance
         compliance = self.compliance(x)
@@ -584,16 +597,17 @@ class PlaneStressAnalysis(om.ExplicitComponent):
             freqc = '-'
 
         # Set title
-        title = '{:<15s}{:<12.6f}{:<15s}{:<12.6f}\n' \
-                '{:<15s}{:<12.6f}{:<15s}{:<12.6f}\n' \
-                '{:<15s}{:<12s}{:<15s}{:<12s}\n' \
-                '{:<10s}{:<8.2f}{:<10s}{:<8.2f}{:<10s}{:<8.2f}'.format(
-                'compliance:', compliance, 'norm-ed mass:', normalized_mass,
-                'base freq:', base_freq, 'max stress:', np.max(stress),
-                'freq constr:', freqc, 'ks stress:', ks_stress,
-                'SIMP qval:', self.qval, 'epsilon:', self.epsilon, 'ks param:', self.ks_parameter)
+        if not paperstyle:
+            title = '{:<15s}{:<12.6f}{:<15s}{:<12.6f}\n' \
+                    '{:<15s}{:<12.6f}{:<15s}{:<12.6f}\n' \
+                    '{:<15s}{:<12s}{:<15s}{:<12s}\n' \
+                    '{:<10s}{:<8.2f}{:<10s}{:<8.2f}{:<10s}{:<8.2f}'.format(
+                    'compliance:', compliance, 'norm-ed mass:', normalized_mass,
+                    'base freq:', base_freq, 'max stress:', np.max(stress),
+                    'freq constr:', freqc, 'ks stress:', ks_stress,
+                    'SIMP qval:', self.qval, 'epsilon:', self.epsilon, 'ks param:', self.ks_parameter)
 
-        ax.set_title(title, loc='left')
+            ax.set_title(title, loc='left')
 
         # Plot or save the figure
         if savefig is False:
