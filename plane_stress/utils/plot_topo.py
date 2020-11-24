@@ -136,7 +136,7 @@ if __name__ == '__main__':
                                 try:
                                     files = os.listdir('{:s}/{:s}'.format(args.result_folder, foldername))
                                 except:
-                                    print('[Warning] problem folder {}/{} not found!'.format(
+                                    print('[Error] problem folder {}/{} not found!'.format(
                                         args.result_folder, foldername))
                                 else:
                                     for f in files:
