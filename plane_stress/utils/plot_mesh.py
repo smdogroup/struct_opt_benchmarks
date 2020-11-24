@@ -159,13 +159,17 @@ if __name__ == '__main__':
             for meshtype in args.meshtype:
                 for domain in args.domain:
                     for hole in args.hole:
-                        if hole == 'hole' and meshtype == 'unstructured':
-                            extra = '-r1-0.4-r2-0.4'
+                        if domain == 'lbracket':
+                            extral = '-r1-0.4-r2-0.4'
                         else:
-                            extra = ''
+                            extral = ''
+                        if hole == 'hole' and meshtype == 'unstructured':
+                            extrah = '-hole0.2'
+                        else:
+                            extrah = ''
 
-                        pklname = '{:s}-{:s}-n{:d}-AR{:.1f}{:s}-distriforce.pkl'.format(
-                            meshtype, domain, n, AR, extra)
+                        pklname = '{:s}-{:s}-n{:d}-AR{:.1f}{:s}-distriforce{:s}.pkl'.format(
+                            meshtype, domain, n, AR, extral, extrah)
                         pkl_path = '{:s}/{:s}'.format(args.pkl_folder, pklname)
 
                         # Load pickle
