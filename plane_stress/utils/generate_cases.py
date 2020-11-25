@@ -155,10 +155,13 @@ with open('cases.sh', 'w') as f:
                     # set output directory
                     outdir = 'results/{:s}-{:s}'.format(opt_problem, os.path.splitext(pkl)[0])
 
-                    if meshtype == 'structured':
-                        design_freq = '--design_freq {:.3f}'.format(base_freqs[meshtype][domain][AR]*freq_ratio)
-                    else:
-                        design_freq = '--design_freq {:.3f}'.format(base_freqs[meshtype][domain][AR][hole]*freq_ratio)
+                    # If this is a 2D problem, we get base frequencies from database
+                    dimension = pkl.split('-')[0]
+                    if dimension != '3D':
+                        if meshtype == 'structured':
+                            design_freq = '--design_freq {:.3f}'.format(base_freqs[meshtype][domain][AR]*freq_ratio)
+                        else:
+                            design_freq = '--design_freq {:.3f}'.format(base_freqs[meshtype][domain][AR][hole]*freq_ratio)
 
                     if opt_problem == 'comp_min_mass_constr':
                         line = '{:s} pkls/{:s} {:s} {:s} --outdir {:s} {:s} {:s}\n'.format(

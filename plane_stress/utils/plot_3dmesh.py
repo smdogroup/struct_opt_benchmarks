@@ -11,6 +11,8 @@ from mpl_toolkits.mplot3d import proj3d
 from matplotlib.patches import Arrow, Polygon, FancyArrowPatch
 import numpy as np
 import os
+import argparse
+import pickle
 
 class myArrow3D(FancyArrowPatch):
     def __init__(self, xs, ys, zs, *args, **kwargs):
@@ -23,7 +25,14 @@ class myArrow3D(FancyArrowPatch):
         self.set_positions((xs[0], ys[0]), (xs[1], ys[1]))
         FancyArrowPatch.draw(self, renderer)
 
-def plot_3dmesh(conn, X, dof, force):
+def plot_3dmesh(pkl_dict, savefig=False):
+
+    # Get info
+    prob_name = pkl_dict['prob_name']
+    conn = pkl_dict['conn']
+    dof = pkl_dict['dof']
+    force = pkl_dict['force']
+    X = pkl_dict['X']
 
     # Get number of elements
     nelems = conn.shape[0]
@@ -139,5 +148,22 @@ def plot_3dmesh(conn, X, dof, force):
 
         ax.add_artist(arrow)
 
+    if savefig:
+        name = prob_name + '.png'
+        plt.savefig(name)
+        plt.close()
+    else:
+        plt.show()
 
-    plt.show()
+if __name__ == '__main__':
+
+    p = argparse.ArgumentParser()
+    p.add_argument('pklfile', type=str)
+    p.add_argument('--savefig', action='store_true')
+    args = p.parse_args()
+
+    # Load pickle
+    with open(args.pklfile, 'rb') as fh:
+        prob_pkl = pickle.load(fh)
+
+    plot_3dmesh(prob_pkl, args.savefig)

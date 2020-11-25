@@ -68,56 +68,80 @@ def snopt_plot(filename, savefig):
             try:
                 major.append(re.findall(intPattern, data[0:6])[0])
             except IndexError:
-                major.append(major[-1])
+                try:
+                    major.append(major[-1])
+                except:
+                    major.append(0)
                 if not savefig:
                     warnings.warn('Missing major iteration number found ' \
                         'in line {:d}'.format(line_index+1), RuntimeWarning)
             try:
                 step.append(re.findall(sciPattern, data[13:22])[0])
             except IndexError:
-                step.append(step[-1])
+                try:
+                    step.append(step[-1])
+                except:
+                    step.append(0)
                 if not savefig:
                     warnings.warn('Missing entry \'Step\' found in major ' \
                         'iteration {:d}'.format(int(major[-1])), RuntimeWarning)
             try:
                 ncon.append(re.findall(intPattern, data[22:29])[0])
             except IndexError:
-                ncon.append(ncon[-1])
+                try:
+                    ncon.append(ncon[-1])
+                except:
+                    ncon.append(0)
                 if not savefig:
                     warnings.warn('Missing entry \'nCon\' found in major ' \
                         'iteration {:d}'.format(int(major[-1])), RuntimeWarning)
             try:
                 feasible.append(re.findall(sciPattern, data[29:39])[0])
             except IndexError:
-                feasible.append(feasible[-1])
+                try:
+                    feasible.append(feasible[-1])
+                except:
+                    feasible.append(0)
                 if not savefig:
                     warnings.warn('Missing entry \'Feasible\' found in major ' \
                         'iteration {:d}'.format(int(major[-1])), RuntimeWarning)
             try:
                 optimal.append(re.findall(sciPattern, data[39:47])[0])
             except IndexError:
-                optimal.append(optimal[-1])
+                try:
+                    optimal.append(optimal[-1])
+                except:
+                    optimal.append(0)
                 if not savefig:
                     warnings.warn('Missing entry \'Optimal\' found in major ' \
                         'iteration {:d}'.format(int(major[-1])), RuntimeWarning)
             try:
                 meritfun.append(re.findall(sciPattern, data[47:62])[0])
             except IndexError:
-                meritfun.append(meritfun[-1])
+                try:
+                    meritfun.append(meritfun[-1])
+                except:
+                    meritfun.append(0)
                 if not savefig:
                     warnings.warn('Missing entry \'MeritFun\' found in major ' \
                         'iteration {:d}'.format(int(major[-1])), RuntimeWarning)
             try:
                 ns.append(re.findall(intPattern, data[62:69])[0])
             except IndexError:
-                ns.append(ns[-1])
+                try:
+                    ns.append(ns[-1])
+                except:
+                    ns.append(0)
                 if not savefig:
                     warnings.warn('Missing entry \'nS\' found in major ' \
                         'iteration {:d}'.format(int(major[-1])), RuntimeWarning)
             try:
                 penalty.append(re.findall(sciPattern, data[69:77])[0])
             except IndexError:
-                penalty.append(penalty[-1])
+                try:
+                    penalty.append(penalty[-1])
+                except:
+                    penalty.append(0)
                 if not savefig:
                     warnings.warn('Missing entry \'Penalty\' found in major ' \
                         'iteration {:d}'.format(int(major[-1])), RuntimeWarning)

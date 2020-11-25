@@ -15,7 +15,6 @@ import openmdao.api as om
 import pickle
 import argparse
 from paropt.paropt_driver import ParOptDriver
-from plane_stress.wrapper import PlaneStressAnalysis
 import os
 import timeit
 
@@ -24,14 +23,45 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
              in_stress_as_fraction, in_max_iters, in_ParOpt_use_adaptive_gamma_update,
              in_ParOpt_use_filter, in_ParOpt_use_soc, in_info, in_outdir):
 
+    # Load pickle file
+    with open(in_picklename, 'rb') as pklfile:
+        prob_pkl = pickle.load(pklfile)
+
+    # Get data from pickle
+    prob_name = prob_pkl['prob_name']
+    nnodes = prob_pkl['nnodes']
+    C = prob_pkl['C']
+    conn = prob_pkl['conn']
+    X = prob_pkl['X']
+    dof = prob_pkl['dof']
+    force = prob_pkl['force']
+    r0 = prob_pkl['r0']
+    density = prob_pkl['density']
+
+    # Check whether we have a 2D or 3D problem
+    if conn.shape[1] == 8:
+        prob_dimension = '3D'
+        print("\nWe have a 3D problem, no topology plot will be generated!")
+        from plane_stress.wrapper import SolidAnalysis as Analysis
+    else:
+        prob_dimension = '2D'
+        from plane_stress.wrapper import PlaneStressAnalysis as Analysis
+
     # Check inputs
-    opt_choices = [
+    opt_choices_2d = [
         'comp_min_mass_constr', 'comp_min_massfreq_constr',
         'comp_min_massstress_constr', 'comp_min_massfreqstress_constr',
         'stress_min_mass_constr', 'mass_min_stress_constr']
 
-    if in_opt_problem not in opt_choices:
-        raise ValueError("\nopt_problem {:s} is not supported!".format(in_opt_problem))
+    opt_choices_3d = ['comp_min_mass_constr',
+    'comp_min_massstress_constr', 'mass_min_stress_constr']
+
+    if prob_dimension == '2D':
+        if in_opt_problem not in opt_choices_2d:
+            raise ValueError("\nopt_problem {:s} is not supported!".format(in_opt_problem))
+    else:
+        if in_opt_problem not in opt_choices_3d:
+            raise ValueError("\nopt_problem {:s} is not supported!".format(in_opt_problem))
 
     if in_optimizer not in ['ParOpt', 'SNOPT', 'IPOPT']:
         raise ValueError("\noptimizer {:s} not supported!".format(in_optimizer))
@@ -62,21 +92,6 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
     ParOpt_qn_diag_type = 'yty_over_yts'
     ParOpt_penalty_gamma = 50.0
     qn_subspace_size = 5
-
-    # Load pickle file
-    with open(in_picklename, 'rb') as pklfile:
-        prob_pkl = pickle.load(pklfile)
-
-    # Get data from pickle
-    prob_name = prob_pkl['prob_name']
-    nnodes = prob_pkl['nnodes']
-    C = prob_pkl['C']
-    conn = prob_pkl['conn']
-    X = prob_pkl['X']
-    dof = prob_pkl['dof']
-    force = prob_pkl['force']
-    r0 = prob_pkl['r0']
-    density = prob_pkl['density']
 
     # Set up info string for output
     optimizer_info = in_optimizer
@@ -121,7 +136,7 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
                 raise ValueError("\ndesign_mass must be specified!\n")
 
             # Create analysis object
-            analysis = PlaneStressAnalysis(conn, dof, X, force, r0,
+            analysis = Analysis(conn, dof, X, force, r0,
                 C, density, in_qval, in_epsilon, in_ks_parameter,
                 compute_comp=True, compute_mass=True)
 
@@ -150,7 +165,7 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
             prob_pkl['design_freq'] = in_design_freq
 
             # Create analysis object
-            analysis = PlaneStressAnalysis(conn, dof, X, force, r0,
+            analysis = Analysis(conn, dof, X, force, r0,
                 C, density, in_qval, in_epsilon, in_ks_parameter,
                 compute_comp=True, compute_mass=True, compute_freq=True,
                 design_freq=in_design_freq)
@@ -179,7 +194,7 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
 
             if in_stress_as_fraction:
 
-                analysis = PlaneStressAnalysis(conn, dof, X, force, r0,
+                analysis = Analysis(conn, dof, X, force, r0,
                     C, density, in_qval, in_epsilon, in_ks_parameter)
                 x_full = np.ones(nnodes)
                 stress_full = np.max(analysis.nodal_stress(x_full))
@@ -192,7 +207,7 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
             prob_pkl['design_stress'] = design_stress
 
             # Create analysis object
-            analysis = PlaneStressAnalysis(conn, dof, X, force, r0,
+            analysis = Analysis(conn, dof, X, force, r0,
                     C, density, in_qval, in_epsilon, in_ks_parameter,
                     compute_comp=True, compute_stress=True,
                     compute_mass=True, design_stress=design_stress)
@@ -224,7 +239,7 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
 
             if in_stress_as_fraction:
 
-                analysis = PlaneStressAnalysis(conn, dof, X, force, r0,
+                analysis = Analysis(conn, dof, X, force, r0,
                     C, density, in_qval, in_epsilon, in_ks_parameter)
                 x_full = np.ones(nnodes)
                 stress_full = np.max(analysis.nodal_stress(x_full))
@@ -238,7 +253,7 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
             prob_pkl['design_freq'] = in_design_freq
 
             # Create analysis object
-            analysis = PlaneStressAnalysis(conn, dof, X, force, r0,
+            analysis = Analysis(conn, dof, X, force, r0,
                 C, density, in_qval, in_epsilon, in_ks_parameter, compute_comp=True,
                 compute_stress=True, compute_freq=True, compute_mass=True,
                 design_stress=design_stress, design_freq=in_design_freq)
@@ -268,7 +283,7 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
 
             if in_stress_as_fraction:
 
-                analysis = PlaneStressAnalysis(conn, dof, X, force, r0,
+                analysis = Analysis(conn, dof, X, force, r0,
                     C, density, in_qval, in_epsilon, in_ks_parameter)
                 x_full = np.ones(nnodes)
                 stress_full = np.max(analysis.nodal_stress(x_full))
@@ -281,7 +296,7 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
             prob_pkl['design_stress'] = design_stress
 
             # Create analysis object
-            analysis = PlaneStressAnalysis(conn, dof, X, force, r0,
+            analysis = Analysis(conn, dof, X, force, r0,
                     C, density, in_qval, in_epsilon, in_ks_parameter,
                     compute_stress=True, compute_mass=True, design_stress=design_stress)
 
@@ -305,7 +320,7 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
 
             if in_stress_as_fraction:
 
-                analysis = PlaneStressAnalysis(conn, dof, X, force, r0,
+                analysis = Analysis(conn, dof, X, force, r0,
                     C, density, in_qval, in_epsilon, in_ks_parameter)
                 x_full = np.ones(nnodes)
                 stress_full = np.max(analysis.nodal_stress(x_full))
@@ -318,7 +333,7 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
             prob_pkl['design_stress'] = design_stress
 
             # Create analysis object
-            analysis = PlaneStressAnalysis(conn, dof, X, force, r0,
+            analysis = Analysis(conn, dof, X, force, r0,
                     C, density, in_qval, in_epsilon, in_ks_parameter,
                     compute_stress=True, compute_mass=True, design_stress=design_stress)
 
@@ -451,10 +466,11 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
 
 
     # Plot design and stress contour for final design
-    topo_name = outputname + '_topo.png'
-    stress_name = outputname + '_stress.png'
-    analysis.plot_topology(x_opt, savefig=True, filename=topo_name)
-    analysis.plot_stress(x_opt, savefig=True, filename=stress_name)
+    if prob_dimension == '2D':
+        topo_name = outputname + '_topo.png'
+        stress_name = outputname + '_stress.png'
+        analysis.plot_topology(x_opt, savefig=True, filename=topo_name)
+        analysis.plot_stress(x_opt, savefig=True, filename=stress_name)
 
     # Save design to pkl file
     prob_pkl['x'] = x_opt

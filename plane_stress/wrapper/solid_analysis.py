@@ -11,15 +11,25 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from pprint import pprint
 from plane_stress.utils import plot_3dmesh
 import pyamg
+import timeit
 
 class SolidAnalysis(om.ExplicitComponent):
 
     def __init__(self, conn, dof, X, force, r0, C, density,
                  qval, epsilon, ks_parameter,
-                 design_stress=None, compute_comp=False,
-                 compute_mass=False, compute_stress=False):
+                 design_stress=None, design_freq=None,
+                 compute_comp=False, compute_mass=False,
+                 compute_inertia=False, compute_freq=False,
+                 compute_stress=False, use_pyamg=True):
 
         super().__init__()
+
+        # Value check
+        if compute_freq is True or design_freq is not None:
+            print('\n[Warning] frequency computation is not supported for 3D problems yet!')
+
+        if compute_inertia is True:
+            print('\n[Warning] inertia computation is not supported for 3D problems yet!')
 
         # Save the data
         self.conn = conn
@@ -36,6 +46,7 @@ class SolidAnalysis(om.ExplicitComponent):
         self.compute_comp = compute_comp
         self.compute_mass = compute_mass
         self.compute_stress = compute_stress
+        self.use_pyamg = use_pyamg
 
         # Set the number of variables and the number of nodes
         self.ndof = np.max(self.dof) + 1
@@ -158,7 +169,7 @@ class SolidAnalysis(om.ExplicitComponent):
 
         return dmdx
 
-    def compliance(self, x, solver='pyamg'):
+    def compliance(self, x):
         """
         Compute the structural compliance
         """
@@ -175,10 +186,9 @@ class SolidAnalysis(om.ExplicitComponent):
         Kmat = sparse.csr_matrix((self.Kvals, self.cols, self.rowp),
                                  shape=(self.ndof, self.ndof))
 
-        if solver == 'pyamg':
-            # Create a multigrid hierarchy object
-            self.ml = pyamg.ruge_stuben_solver(Kmat)
-            self.u = self.ml.solve(self.force, tol=1e-10)
+        if self.use_pyamg:
+            self.ml = pyamg.smoothed_aggregation_solver(Kmat, max_coarse=10)
+            self.u = self.ml.solve(self.force, accel='cg', cycle='V', tol=1e-10)
 
         else:
             self.Kmat = Kmat.tocsc()
@@ -240,10 +250,14 @@ class SolidAnalysis(om.ExplicitComponent):
         Kmat = sparse.csr_matrix((self.Kvals, self.cols, self.rowp),
                                  shape=(self.ndof, self.ndof))
         self.Kmat = Kmat.tocsc()
-        self.LU = linalg.dsolve.factorized(self.Kmat)
 
         # Compute the solution to the linear system K*u = f
-        self.u = self.LU(self.force)
+        if self.use_pyamg:
+            self.ml = pyamg.smoothed_aggregation_solver(Kmat, max_coarse=10)
+            self.u = self.ml.solve(self.force, accel='cg', cycle='V', tol=1e-10)
+        else:
+            self.LU = linalg.dsolve.factorized(self.Kmat)
+            self.u = self.LU(self.force)
 
         # Compute nodal stress
         stress = np.zeros(self.nnodes)
@@ -310,7 +324,10 @@ class SolidAnalysis(om.ExplicitComponent):
             self.epsilon, self.C.T, self.u, rho, dksds.T, dfdu)
 
         # Compute the adjoint variables
-        psi = self.LU(dfdu)
+        if self.use_pyamg:
+            psi = self.ml.solve(dfdu, accel='cg', cycle='V', tol=1e-10)
+        else:
+            psi = self.LU(dfdu)
 
         # Compute derivative of ks w.r.t. design variable
         dfdrho = np.zeros(nnodes)
@@ -382,11 +399,11 @@ if __name__ == '__main__':
     nx = 2
     ny = 2
     nz = 4
-    r0 = 1.0/32.0
+    r0 = 1.0/6.0
     lx = 1.0
     ly = 1.0
     lz = 4.0
-    force_magnitude = 2.0
+    force_magnitude = 25.0
     density = 2700.0
 
     nelems = nx*ny*nz
@@ -403,7 +420,7 @@ if __name__ == '__main__':
     C[0, 1] = C[0, 2] = C[1, 2] = nu
     C[1, 0] = C[2, 0] = C[2, 1] = nu
     C[3, 3] = C[4, 4] = C[5, 5] = 0.5 - nu
-    C /= E/(1+nu)/(1-2*nu)
+    C *= E/(1+nu)/(1-2*nu)
 
     for k in range(nz):
         for j in range(ny):
@@ -434,14 +451,12 @@ if __name__ == '__main__':
 
     force = np.zeros(ndof)
     k = nz
+    nforce = 0
     for j in range(ny+1):
         for i in range(nx+1):
             force[dof[i + j*(nx+1)+k*(nx+1)*(ny+1), 1]] = -force_magnitude
-
-    # Create analysis object instance
-    analysis = SolidAnalysis(conn, dof, X, force, r0, C, density, qval=5.0,
-                             epsilon=0.1, ks_parameter=100.0, design_stress=1.0,
-                             compute_comp=True, compute_mass=True, compute_stress=True)
+            nforce += 1
+    force /= nforce
 
     # We set random material for each element
     np.random.seed(0)
@@ -451,7 +466,31 @@ if __name__ == '__main__':
     # plot_3dmesh(conn, X, dof, force)
 
     # Find out which one is better:
+    N = 1
 
+    analysis = SolidAnalysis(conn, dof, X, force, r0, C, density, qval=5.0,
+                                epsilon=0.1, ks_parameter=100.0, design_stress=1.0,
+                                use_pyamg=True, compute_comp=True, compute_mass=True, compute_stress=True)
+
+    t1 = timeit.default_timer()
+    for i in range(N):
+        c2 = analysis.compliance(x)
+    t2 = timeit.default_timer()
+    print('compliance: {:e}'.format(c2))
+    print('Pyamg runtime: {:e}'.format(t2-t1))
+
+    # analysis = SolidAnalysis(conn, dof, X, force, r0, C, density, qval=5.0,
+    #                             epsilon=0.1, ks_parameter=100.0, design_stress=1.0,
+    #                             use_pyamg=False, compute_comp=True, compute_mass=True, compute_stress=True)
+
+
+    # t1 = timeit.default_timer()
+    # for i in range(N):
+    #     c1 = analysis.compliance(x)
+    # t2 = timeit.default_timer()
+    # print('Scipy runtime: {:e}'.format(t2-t1))
+
+    # print('relerr       : {:e}'.format((c2-c1)/c1))
 
     # Create openMDAO problem instance
     prob = om.Problem()

@@ -335,7 +335,7 @@ if __name__ == '__main__':
 
     # call preproc
     preproc(args.n, args.AR, args.prob, args.meshtype,
-    args.ratio1, args.ratio2,args.use_concentrated_force,
-    args.use_hole, args.hole_radius, args.nr0,
-    args.outdir, args.no_plot_mesh, force_magnitude,
-    forced_portion, MBB_bc_portion, ly, density, E, nu)
+            args.ratio1, args.ratio2,args.use_concentrated_force,
+            args.use_hole, args.hole_radius, args.nr0,
+            args.outdir, args.no_plot_mesh, force_magnitude,
+            forced_portion, MBB_bc_portion, ly, density, E, nu)
