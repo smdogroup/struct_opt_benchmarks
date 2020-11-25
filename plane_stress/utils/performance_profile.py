@@ -67,7 +67,7 @@ p.add_argument('--opt_problem', nargs='*', type=str, default=['all'], choices=[
     'all', 'comp_min_mass_constr', 'comp_min_massfreq_constr',
     'comp_min_massstress_constr', 'comp_min_massfreqstress_constr',
     'stress_min_mass_constr', 'mass_min_stress_constr'])
-p.add_argument('--metric', type=str, default='obj', choices=['obj', 'time'])
+p.add_argument('--metric', type=str, default='obj', choices=['obj', 'time', 'discreteness'])
 p.add_argument('--infeas_tol', type=float, default=1e-4)
 p.add_argument('--metric_limit', type=float, default=2.0,
     help='cases with metrics larger than this limit are considered failed')
@@ -86,6 +86,13 @@ if args.metric == 'obj':
     metric = 'obj'
 elif args.metric == 'time':
     metric = 'opt_time'
+
+metric_xmin = 0.95
+metric_xmax = args.metric_limit
+
+if args.metric == 'discreteness':
+    metric_xmin = -0.01
+    metric_xmax = 0.25
 
 # Store all folder names in results/ folder
 case_folders = []
@@ -159,17 +166,25 @@ for case_folder in case_folders:
             # in case time is used as metric
             pkl_dict['opt_time'] = float(pkl_dict['opt_time'][:-1])
 
-            # Load obj/time
-            try:
-                optimizer_data[optimizer]['metric'][prob_index] = float(pkl_dict[metric])
+            # Get metric
+            if args.metric == 'discreteness':
+                try:
+                    x = pkl_dict['x']
+                    optimizer_data[optimizer]['metric'][prob_index] = np.dot(x, 1-x)/len(x)
+                except Exception as e:
+                    print("\n[Warning] cannot load pkl file:\n{:s}/{:s}/{:s}".format(
+                        args.result_folder, case_folder, pkl_file))
+                    print("Error message:", e)
+            else:
+                try:
+                    optimizer_data[optimizer]['metric'][prob_index] = float(pkl_dict[metric])
 
-            except Exception as e:
-                print("\n[Warning] cannot load pkl file:\n{:s}/{:s}/{:s}".format(
-                    args.result_folder, case_folder, pkl_file))
-                print("Error message:", e)
+                except Exception as e:
+                    print("\n[Warning] cannot load pkl file:\n{:s}/{:s}/{:s}".format(
+                        args.result_folder, case_folder, pkl_file))
+                    print("Error message:", e)
 
             # Load maximum normalized constraint violation
-            # TODO: fix constraint in optimize
             # We read constraints from text output file
             if 'ParOpt' in optimizer:
                 textout = '{:s}/{:s}/{:s}.tr'.format(args.result_folder, case_folder,
@@ -207,22 +222,23 @@ for case_folder in case_folders:
 
     # Now we've get all data needed in this problem folder
     # Next, normalize the metric against the best one
-    metrics = [ optimizer_data[key]['metric'][prob_index] for key in optimizers if
-        optimizer_data[key]['metric'][prob_index] is not None ]
+    if args.metric == 'time' or args.metric == 'obj':
+        metrics = [ optimizer_data[key]['metric'][prob_index] for key in optimizers if
+            optimizer_data[key]['metric'][prob_index] is not None ]
 
-    if metrics:
-        # compute best over all optimziers if metrics is not empty
-        best = min(metrics)
-    else:
-        # Otherwise, give a dummy quantity to best
-        best = 1.0
-        print('[Warning] No feasible cases in the following folder!\n{:s}/{:s}'.format(
-            args.result_folder, case_folder))
+        if metrics:
+            # compute best over all optimziers if metrics is not empty
+            best = min(metrics)
+        else:
+            # Otherwise, give a dummy quantity to best
+            best = 1.0
+            print('[Warning] No feasible cases in the following folder!\n{:s}/{:s}'.format(
+                args.result_folder, case_folder))
 
-    for optimizer in optimizers:
+        for optimizer in optimizers:
 
-        if optimizer_data[optimizer]['metric'][prob_index] is not None:
-            optimizer_data[optimizer]['metric'][prob_index] /= best
+            if optimizer_data[optimizer]['metric'][prob_index] is not None:
+                optimizer_data[optimizer]['metric'][prob_index] /= best
 
     prob_index += 1
 
@@ -242,7 +258,7 @@ for optimizer in optimizers:
     percentiles = [ (sorted_metrics.index(i) + 1 ) / nvalids for i in sorted_metrics ]
 
     # Append one more entry so that we will have a flat curve till right end
-    sorted_metrics.append(args.metric_limit)
+    sorted_metrics.append(metric_xmax)
     if percentiles:
         percentiles.append(percentiles[-1])
     else:
@@ -250,8 +266,8 @@ for optimizer in optimizers:
 
     # Insert (1.0, 0.0) to beginning of lists so that we will have all curves
     # starting from (1.0, 0.0)
-    sorted_metrics.insert(0, 1.0)
-    percentiles.insert(0, 0.0)
+    # sorted_metrics.insert(0, 1.0)
+    # percentiles.insert(0, 0.0)
 
     # Plot
     ax.step(sorted_metrics, percentiles, label=legends[optimizer])
@@ -260,11 +276,11 @@ for optimizer in optimizers:
 
 if len(opt_problems) == 4:
     title = 'Performance Profiler on Full 2D Problem Set'
-    name = 'performance-profiler-all-tol-{:.0e}-ninfeas-{:d}.pdf'.format(args.infeas_tol, ninfeas)
+    name = 'profiler-{:s}-all-tol-{:.0e}-ninfeas-{:d}.pdf'.format(args.metric, args.infeas_tol, ninfeas)
 
 elif len(opt_problems) == 1:
     title = 'Performance Profiler on Problem Set: {:s}'.format(opt_problems[0])
-    name = 'performance-profiler-{:s}-tol-{:.0e}-ninfeas-{:d}.pdf'.format(opt_problems[0], args.infeas_tol, ninfeas)
+    name = 'profiler-{:s}-{:s}-tol-{:.0e}-ninfeas-{:d}.pdf'.format(args.metric, opt_problems[0], args.infeas_tol, ninfeas)
 else:
     title = 'Performance Profiler'
     name = 'profiler'
@@ -272,9 +288,16 @@ else:
         name += '-'+prob
     name += '-tol-{:.0e}-ninfeas-{:d}.pdf'.format(args.infeas_tol, ninfeas)
 
-ax.set_xlim([0.95, args.metric_limit])
+ax.set_xlim([metric_xmin, metric_xmax])
 ax.set_ylim([0.0, 1.01])
-ax.set_xlabel('Normalized objective')
+
+if args.metric == 'obj':
+    xlabel = 'Normalized objective'
+elif args.metric == 'time':
+    xlabel = r'Normalized optimization time \tau'
+elif args.metric == 'discreteness':
+    xlabel = 'Average discreteness'
+ax.set_xlabel(xlabel)
 ax.set_ylabel('Percentage of cases')
 plt.legend()
 

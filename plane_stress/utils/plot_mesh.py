@@ -48,7 +48,7 @@ def plot_mesh(prob_pkl, savefig, outdir, paperstyle=False):
     # Compute the size of shapes
     xmax, ymax = np.amax(X, axis=0)
     xmin, ymin = np.amin(X, axis=0)
-    domain_size = max(ymax-ymin, xmax-xmin)
+    domain_size = ymax-ymin
     shape_size = domain_size * 0.15
     f_size = np.max(np.abs(force))
 

@@ -565,39 +565,37 @@ class PlaneStressAnalysis(om.ExplicitComponent):
             fig.subplots_adjust(top=0.80)
             fig.subplots_adjust(bottom=0.02)
 
-        # Set colorbar
-        if not paperstyle:
+            # Set colorbar
             divider = make_axes_locatable(ax)
             cax = divider.append_axes("right", size="5%", pad=0.05)
             fig.colorbar(cntr, cax=cax)
 
-        # Compute compliance
-        compliance = self.compliance(x)
+            # Compute compliance
+            compliance = self.compliance(x)
 
-        # Compute mass
-        xfull = np.ones(self.nnodes)
-        mass = self.mass(x)
-        normalized_mass = mass / self.mass(xfull)
+            # Compute mass
+            xfull = np.ones(self.nnodes)
+            mass = self.mass(x)
+            normalized_mass = mass / self.mass(xfull)
 
-        # Compute base frequency
-        base_freq = self.base_frequency(x)
+            # Compute base frequency
+            base_freq = self.base_frequency(x)
 
-        # Compute maximum stress
-        stress = self.nodal_stress(x)
+            # Compute maximum stress
+            stress = self.nodal_stress(x)
 
-        # Compute problem specific values
-        if self.design_stress is not None:
-            ks_stress = '{:.4e}'.format(self.ks_nodal_stress(x))
-        else:
-            ks_stress = '-'
+            # Compute problem specific values
+            if self.design_stress is not None:
+                ks_stress = '{:.4e}'.format(self.ks_nodal_stress(x))
+            else:
+                ks_stress = '-'
 
-        if self.design_freq is not None:
-            freqc = '{:.4e}'.format(self.freq_constr(x))
-        else:
-            freqc = '-'
+            if self.design_freq is not None:
+                freqc = '{:.4e}'.format(self.freq_constr(x))
+            else:
+                freqc = '-'
 
-        # Set title
-        if not paperstyle:
+            # Set title
             title = '{:<15s}{:<12.6f}{:<15s}{:<12.6f}\n' \
                     '{:<15s}{:<12.6f}{:<15s}{:<12.6f}\n' \
                     '{:<15s}{:<12s}{:<15s}{:<12s}\n' \

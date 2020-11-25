@@ -63,10 +63,16 @@ def plot_topo(picklename, savefig=False, filename=None, paperstyle=False):
         x = np.zeors(nnodes)
 
     # Instantiate analysis because we need to compute filtered design
-    analysis = PlaneStressAnalysis(conn, dof, X, force, r0, C, density,
-        qval, epsilon, ks_parameter, design_stress=design_stress,
-        design_freq=design_freq, compute_comp=True, compute_mass=True,
-        compute_freq=True, compute_stress=True)
+    if not paperstyle:
+        analysis = PlaneStressAnalysis(conn, dof, X, force, r0, C, density,
+            qval, epsilon, ks_parameter, design_stress=design_stress,
+            design_freq=design_freq, compute_comp=True, compute_mass=True,
+            compute_freq=True, compute_stress=True)
+    else:
+        analysis = PlaneStressAnalysis(conn, dof, X, force, r0, C, density,
+            qval, epsilon, ks_parameter, design_stress=design_stress,
+            design_freq=design_freq)
+
 
     # Plot or save fig
     analysis.plot_topology(x, savefig=savefig, filename=filename, paperstyle=paperstyle)
@@ -125,13 +131,17 @@ if __name__ == '__main__':
                     for meshtype in args.meshtype:
                         for domain in args.domain:
                             for hole in args.hole:
-                                if hole == 'hole' and meshtype == 'unstructured':
-                                    extra = '-r1-0.4-r2-0.4'
+                                if domain == 'lbracket':
+                                    extral = '-r1-0.4-r2-0.4'
                                 else:
-                                    extra = ''
+                                    extral = ''
+                                if hole == 'hole' and meshtype == 'unstructured':
+                                    extrah = '-hole0.2'
+                                else:
+                                    extrah = ''
 
-                                foldername = '{:s}-{:s}-{:s}-n{:d}-AR{:.1f}{:s}-distriforce'.format(
-                                    opt_problem, meshtype, domain, n, AR, extra)
+                                foldername = '{:s}-{:s}-{:s}-n{:d}-AR{:.1f}{:s}-distriforce{:s}'.format(
+                                    opt_problem, meshtype, domain, n, AR, extral, extrah)
 
                                 try:
                                     files = os.listdir('{:s}/{:s}'.format(args.result_folder, foldername))
