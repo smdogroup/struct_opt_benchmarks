@@ -5,6 +5,7 @@ This script can plot 3D meshes with 8-node solid elements
 '''
 
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 from mpl_toolkits.mplot3d import Axes3D
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from mpl_toolkits.mplot3d import proj3d
@@ -25,7 +26,7 @@ class myArrow3D(FancyArrowPatch):
         self.set_positions((xs[0], ys[0]), (xs[1], ys[1]))
         FancyArrowPatch.draw(self, renderer)
 
-def plot_3dmesh(pkl_dict, savefig=False):
+def plot_3dmesh(pkl_dict, savefig=False, paperstyle=False):
 
     # Get info
     prob_name = pkl_dict['prob_name']
@@ -39,6 +40,7 @@ def plot_3dmesh(pkl_dict, savefig=False):
 
     # Create 3d axes
     fig = plt.figure()
+    fig.tight_layout()
     ax = Axes3D(fig)
 
     # Loop over all elements
@@ -50,7 +52,7 @@ def plot_3dmesh(pkl_dict, savefig=False):
         z = [X[conn[e, n], 2] for n in [0,1,3,2]]
         verts = [list(zip(x, y, z))]
         ax.add_collection3d(Poly3DCollection(verts, edgecolor='black',
-            alpha=0, linewidth=0.5))
+            alpha=0, linewidth=0.05))
 
         # Plot surface 2
         x = [X[conn[e, n], 0] for n in [4,5,7,6]]
@@ -58,7 +60,7 @@ def plot_3dmesh(pkl_dict, savefig=False):
         z = [X[conn[e, n], 2] for n in [4,5,7,6]]
         verts = [list(zip(x, y, z))]
         ax.add_collection3d(Poly3DCollection(verts, edgecolor='black',
-            alpha=0, linewidth=0.5))
+            alpha=0, linewidth=0.05))
 
         # Plot surface 3
         x = [X[conn[e, n], 0] for n in [0,2,6,4]]
@@ -66,7 +68,7 @@ def plot_3dmesh(pkl_dict, savefig=False):
         z = [X[conn[e, n], 2] for n in [0,2,6,4]]
         verts = [list(zip(x, y, z))]
         ax.add_collection3d(Poly3DCollection(verts, edgecolor='black',
-            alpha=0, linewidth=0.5))
+            alpha=0, linewidth=0.05))
 
         # Plot surface 4
         x = [X[conn[e, n], 0] for n in [1,3,7,5]]
@@ -74,7 +76,7 @@ def plot_3dmesh(pkl_dict, savefig=False):
         z = [X[conn[e, n], 2] for n in [1,3,7,5]]
         verts = [list(zip(x, y, z))]
         ax.add_collection3d(Poly3DCollection(verts, edgecolor='black',
-            alpha=0, linewidth=0.5))
+            alpha=0, linewidth=0.05))
 
     # Compute sizes of figure
     xmax, ymax, zmax = np.amax(X, axis=0)
@@ -148,8 +150,17 @@ def plot_3dmesh(pkl_dict, savefig=False):
 
         ax.add_artist(arrow)
 
+    if paperstyle:
+        ax.axis('off')
+        ax.set_xlim([xmin, xmax])
+        ax.set_ylim([ymin, ymax])
+        ax.set_zlim([zmin, zmax])
+
     if savefig:
-        name = prob_name + '.png'
+        if paperstyle:
+            name = prob_name + '.pdf'
+        else:
+            name = prob_name + '.png'
         plt.savefig(name)
         plt.close()
     else:
@@ -160,10 +171,11 @@ if __name__ == '__main__':
     p = argparse.ArgumentParser()
     p.add_argument('pklfile', type=str)
     p.add_argument('--savefig', action='store_true')
+    p.add_argument('--paperstyle', action='store_true')
     args = p.parse_args()
 
     # Load pickle
     with open(args.pklfile, 'rb') as fh:
         prob_pkl = pickle.load(fh)
 
-    plot_3dmesh(prob_pkl, args.savefig)
+    plot_3dmesh(prob_pkl, args.savefig, args.paperstyle)

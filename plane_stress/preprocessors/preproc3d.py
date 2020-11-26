@@ -4,13 +4,15 @@ import numpy as np
 import pickle
 import argparse
 import os
+from plane_stress.preprocessors import create_3d_unstruct_mesh
 
-def preproc3d(n, AR, prob, meshtype, nr0, outdir, plot_mesh,
-              force_magnitude, forced_portion, MBB_bc_portion,
-              ly, density, E, nu):
+def preproc3d(n, AR, prob, ratio1, ratio2, hole_r, meshtype, nr0,
+              outdir, plot_mesh, forced_portion, force_magnitude,
+              MBB_bc_portion, loaded_thickness, ly, density, E, nu):
 
     # prob_name
-    prob_name = '3D-{:s}-{:s}-n{:d}-AR{:.1f}'.format(meshtype, prob, n, AR)
+    prob_name = '3D-{:s}-{:s}-n{:d}-AR{:.1f}-loadthick-{:.1f}'.format(meshtype,
+        prob, n, AR, loaded_thickness)
 
     # dimensions
     ny = n
@@ -22,10 +24,6 @@ def preproc3d(n, AR, prob, meshtype, nr0, outdir, plot_mesh,
     # nnodes, nelems and prob_name
     if prob == 'lbracket':
 
-        ratio1 = ratio2 = 0.4
-        ny = n
-        nx = round(n*AR)
-        lx = ly*AR
         ny1 = round(ny*ratio2)
         nx1 = round(nx*ratio1)
         ly1 = ly*ratio2
@@ -62,7 +60,10 @@ def preproc3d(n, AR, prob, meshtype, nr0, outdir, plot_mesh,
 
     # We use tmr to generate unstructured mesh
     if meshtype == 'unstructured':
-        pass
+
+        nelems, nnodes, ndof, conn, X, dof, force = create_3d_unstruct_mesh(
+            n, AR, prob, ratio1, ratio2, hole_r, forced_portion,
+            force_magnitude, MBB_bc_portion, loaded_thickness, ly)
 
     else:
         # conn, dof, X
@@ -181,48 +182,66 @@ def preproc3d(n, AR, prob, meshtype, nr0, outdir, plot_mesh,
 
         # force
         force = np.zeros(ndof)
+        total = 0
         if prob == 'lbracket':
             nforce = round(ny1*forced_portion)
             if nforce < 2:
                 nforce = 2
-            for k in range(nz+1):
+            nzforce = round(nz*loaded_thickness)
+            midk = int(nz/2)
+            nzhalf = int((nzforce-1)/2)
+            for k in range(midk - nzhalf, midk + nzhalf + 1):
                 for j in range(ny1+1-nforce, ny1+1):
                     force[dof[nx + j*(nx+1) + nnodes_layer*k, 1]] = -force_magnitude
-            force /= (nforce*(nz+1))
+                    total += 1
+            force /= total
 
         elif prob == 'MBB':
             nforce = round(nx*forced_portion)
             if nforce < 2:
                 nforce = 2
-            for k in range(nz+1):
+            nzforce = round(nz*loaded_thickness)
+            midk = int(nz/2)
+            nzhalf = int((nzforce-1)/2)
+            for k in range(midk - nzhalf, midk + nzhalf + 1):
                 for i in range(nforce):
                     force[dof[i + ny*(nx+1) + nnodes_layer*k, 1]] = -force_magnitude
-            force /= (nforce*(nz+1))
+                    total += 1
+            force /= total
 
         elif prob == 'cantilever':
             nforce = round(ny*forced_portion)
             if nforce < 2:
                 nforce = 2
-            for k in range(nz+1):
+            nzforce = round(nz*loaded_thickness)
+            midk = int(nz/2)
+            nzhalf = int((nzforce-1)/2)
+            for k in range(midk - nzhalf, midk + nzhalf + 1):
                 for j in range(nforce):
                     force[dof[nx + j*(nx+1) + nnodes_layer*k, 1]] = -force_magnitude
-            force /= (nforce*(nz+1))
+                    total += 1
+            force /= total
 
 
         elif prob == 'michell':
             nforce = round(ny*forced_portion)
             midj = int(ny/2)
+            nzforce = round(nz*loaded_thickness)
+            midk = int(nz/2)
+            nzhalf = int((nzforce-1)/2)
             if nforce <= 2:
                 nforce = 2
-                for k in range(nz+1):
+                for k in range(midk - nzhalf, midk + nzhalf + 1):
                     for j in range(midj, midj+2):
                         force[dof[nx + j*(nx+1) + nnodes_layer*k, 1]] = -force_magnitude
+                        total += 1
             elif nforce > 2:
                 nhalf = int((nforce-1)/2)
-                for k in range(nz+1):
+                for k in range(midk - nzhalf, midk + nzhalf + 1):
                     for j in range(midj-nhalf, midj+nhalf+1):
                         force[dof[nx + j*(nx+1) + nnodes_layer*k, 1]] = -force_magnitude
-            force /= (nforce*(nz+1))
+                        total += 1
+            force /= total
 
 
     # Generate pickle file
@@ -261,13 +280,9 @@ def preproc3d(n, AR, prob, meshtype, nr0, outdir, plot_mesh,
     # Save mesh plot
     if plot_mesh:
         from plane_stress.utils import plot_3dmesh
-        plot_3dmesh(prob_pkl, savefig=True)
+        plot_3dmesh(prob_pkl, savefig=True, paperstyle=False)
 
     return
-
-
-
-
 
 
 if __name__ == '__main__':
@@ -281,7 +296,8 @@ if __name__ == '__main__':
     p.add_argument('prob', type=str,
         choices=['cantilever', 'michell', 'MBB', 'lbracket'])
     p.add_argument('meshtype', type=str,
-        choices=['structured'])
+        choices=['structured', 'unstructured'])
+    p.add_argument('--loaded_thickness', type=float, default=0.5)
     p.add_argument('--nr0', type=int, default=6,
         help='nr0 controls filter radius, r0 = height / nr0')
     p.add_argument('--outdir', type=str, default=None,
@@ -297,8 +313,11 @@ if __name__ == '__main__':
     density = 2700.0  # material density
     E = 70e3  # Young's modulus
     nu = 0.3  # Poisson's ratio
+    hole_r = 0.25
+    ratio1 = 0.4
+    ratio2 = 0.4
 
     # call
-    preproc3d(args.n, args.AR, args.prob, args.meshtype, args.nr0,
-              args.outdir, args.no_plot_mesh, force_magnitude, forced_portion,
-              MBB_bc_portion, ly, density, E, nu)
+    preproc3d(args.n, args.AR, args.prob, ratio1, ratio2, hole_r, args.meshtype,
+              args.nr0, args.outdir, args.no_plot_mesh, forced_portion, force_magnitude,
+              MBB_bc_portion, args.loaded_thickness, ly, density, E, nu)

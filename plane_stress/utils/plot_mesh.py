@@ -49,21 +49,42 @@ def plot_mesh(prob_pkl, savefig, outdir, paperstyle=False):
     xmax, ymax = np.amax(X, axis=0)
     xmin, ymin = np.amin(X, axis=0)
     domain_size = ymax-ymin
-    shape_size = domain_size * 0.15
+    shape_size = domain_size * 0.2
     f_size = np.max(np.abs(force))
 
     # Plot forces
     dof_indices = np.nonzero(force)[0]  # because force is 1D array, we only need 1st index
+    xcenter = 0.0
+    ycenter = 0.0
+    fx = 0.0
+    fy = 0.0
+    nload = 0
     for dof_index in dof_indices:
         node_index, i = np.where(dof==dof_index)
         node_index = node_index[0]
         i = i[0]
         x = X[node_index, 0]
         y = X[node_index, 1]
+        xcenter += x
+        ycenter += y
+        if i == 0:
+            fx += force[dof_index]
+        elif i == 1:
+            fy += force[dof_index]
         h = force[dof_index]/f_size*shape_size
-        arrow = Arrow(x-h+i*h, y-i*h, h-i*h, i*h, edgecolor='red',
-            width=shape_size*0.4, fill=None, lw=1.0)
-        ax.add_patch(arrow)
+        # arrow = Arrow(x-h+i*h, y-i*h, h-i*h, i*h, edgecolor='red',
+        #     width=shape_size*0.4, fill=None, lw=1.0)
+        # ax.add_patch(arrow)
+        ax.plot(x,y,marker='+', markerfacecolor='red', markeredgecolor='red')
+        nload += 1
+
+    xcenter /= nload
+    ycenter /= nload
+    hx = shape_size*fx/(fx**2+fy**2)**0.5
+    hy = shape_size*fy/(fx**2+fy**2)**0.5
+    arrow = Arrow(xcenter-hx, ycenter-hy, hx, hy, edgecolor='red',
+            width=shape_size*0.5, fill=None, lw=1.5)
+    ax.add_patch(arrow)
 
     # Plot boundary condition
     nodes = np.where(dof == -1)
