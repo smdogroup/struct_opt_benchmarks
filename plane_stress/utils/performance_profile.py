@@ -130,6 +130,7 @@ for optimizer in optimizers:
 # Get objectives and max constraint violation for each problem for each optimizer
 prob_index = 0
 ninfeas = 0
+ninfeas_all_optimizer = 0
 for case_folder in case_folders:
 
     # Store all pkl files
@@ -222,25 +223,37 @@ for case_folder in case_folders:
 
     # Now we've get all data needed in this problem folder
     # Next, normalize the metric against the best one
+    metrics = [ optimizer_data[key]['metric'][prob_index] for key in optimizers if
+        optimizer_data[key]['metric'][prob_index] is not None ]
+
+    if metrics:
+        # compute best over all optimziers if metrics is not empty
+        best = min(metrics)
+    else:
+        # Otherwise, give a dummy quantity to best
+        best = 1.0
+        print('[Warning] No feasible cases in the following folder!\n{:s}/{:s}'.format(
+            args.result_folder, case_folder))
+        ninfeas_all_optimizer += 1
+
+    # We don't normalize discreteness against the best because it is already dimentionless
     if args.metric == 'time' or args.metric == 'obj':
-        metrics = [ optimizer_data[key]['metric'][prob_index] for key in optimizers if
-            optimizer_data[key]['metric'][prob_index] is not None ]
-
-        if metrics:
-            # compute best over all optimziers if metrics is not empty
-            best = min(metrics)
-        else:
-            # Otherwise, give a dummy quantity to best
-            best = 1.0
-            print('[Warning] No feasible cases in the following folder!\n{:s}/{:s}'.format(
-                args.result_folder, case_folder))
-
         for optimizer in optimizers:
-
             if optimizer_data[optimizer]['metric'][prob_index] is not None:
                 optimizer_data[optimizer]['metric'][prob_index] /= best
 
     prob_index += 1
+
+# Print out summary
+print('\n')
+print('                -------SUMMARY-------')
+print('number of optimizers                                   :  {:d}'.format(len(optimizers)))
+print('number of specified optimization problems              :  {:d}'.format(nprobs))
+print('number of valid problems (every optimizer has a result):  {:d}'.format(nvalids))
+print('number of problems that have no feasible cases at all  :  {:d}'.format(ninfeas_all_optimizer))
+print('number of specified optimization cases                 :  {:d}'.format(len(optimizers)*nprobs))
+print('number of individual infeasible cases                  :  {:d}'.format(ninfeas))
+print('\n')
 
 # Set up plotting environment
 mpl_style_path = os.path.dirname(os.path.realpath(__file__)) + '/paper.mplstyle'

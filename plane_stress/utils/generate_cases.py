@@ -69,12 +69,10 @@ pkls = os.listdir('pkls')
 optimize = '~/git/struct_opt_benchmarks/plane_stress/optproblems/optimize.py'
 
 # Set some problem parameters to be constant
-design_mass = '--design_mass 0.4'
-design_stress = '--design_stress 0.9 --stress_as_fraction'
+freq_ratio = 1.2
 qval_ks_epsilon_iter = '--qval 8.0 --epsilon 0.1 --ks_parameter 100.0 --max_iter {:d}'.format(args.max_iter)
 
-# Some other constants
-freq_ratio = 1.2
+# Some counters
 total_required_cases = 0
 existing_cases = 0
 new_cases = 0
@@ -123,9 +121,9 @@ for casefolder in casefolders:
 
 # Generate a shell script containing all cases
 with open('cases.sh', 'w') as f:
-    for opt_problem in opt_problems:
+    for pkl in pkls:
         for optimizer in optimizers:
-            for pkl in pkls:
+            for opt_problem in opt_problems:
 
                 total_required_cases += 1
 
@@ -155,36 +153,55 @@ with open('cases.sh', 'w') as f:
                     # set output directory
                     outdir = 'results/{:s}-{:s}'.format(opt_problem, os.path.splitext(pkl)[0])
 
-                    # If this is a 2D problem, we get base frequencies from database
-                    dimension = pkl.split('-')[0]
-                    if dimension != '3D':
-                        if meshtype == 'structured':
-                            design_freq = '--design_freq {:.3f}'.format(base_freqs[meshtype][domain][AR]*freq_ratio)
-                        else:
-                            design_freq = '--design_freq {:.3f}'.format(base_freqs[meshtype][domain][AR][hole]*freq_ratio)
-
                     if opt_problem == 'comp_min_mass_constr':
+                        design_mass = '--design_mass 0.4'
                         line = '{:s} pkls/{:s} {:s} {:s} --outdir {:s} {:s} {:s}\n'.format(
                             optimize, pkl, opt_problem, optimizer_setting[optimizer], outdir, qval_ks_epsilon_iter, design_mass)
 
                     elif opt_problem == 'comp_min_massfreq_constr':
+
+                        # If this is a 2D problem, we get base frequencies from database
+                        dimension = pkl.split('-')[0]
+                        if dimension != '3D':
+                            if meshtype == 'structured':
+                                design_freq = '--design_freq {:.3f}'.format(base_freqs[meshtype][domain][AR]*freq_ratio)
+                            else:
+                                design_freq = '--design_freq {:.3f}'.format(base_freqs[meshtype][domain][AR][hole]*freq_ratio)
+
+                        design_mass = '--design_mass 0.4'
+
                         line = '{:s} pkls/{:s} {:s} {:s} --outdir {:s} {:s} {:s} {:s}\n'.format(
                             optimize, pkl, opt_problem, optimizer_setting[optimizer], outdir, qval_ks_epsilon_iter, design_mass, design_freq)
 
                     elif opt_problem == 'comp_min_massstress_constr':
                         design_mass = '--design_mass 0.6'
+                        design_stress = '--design_stress 1.5 --stress_as_fraction'
                         line = '{:s} pkls/{:s} {:s} {:s} --outdir {:s} {:s} {:s} {:s}\n'.format(
                             optimize, pkl, opt_problem, optimizer_setting[optimizer], outdir, qval_ks_epsilon_iter, design_mass, design_stress)
 
                     elif opt_problem == 'comp_min_massfreqstress_constr':
+
+                        # If this is a 2D problem, we get base frequencies from database
+                        dimension = pkl.split('-')[0]
+                        if dimension != '3D':
+                            if meshtype == 'structured':
+                                design_freq = '--design_freq {:.3f}'.format(base_freqs[meshtype][domain][AR]*freq_ratio)
+                            else:
+                                design_freq = '--design_freq {:.3f}'.format(base_freqs[meshtype][domain][AR][hole]*freq_ratio)
+
+                        design_mass = '--design_mass 0.4'
+                        design_stress = '--design_stress 1.5 --stress_as_fraction'
+
                         line = '{:s} pkls/{:s} {:s} {:s} --outdir {:s} {:s} {:s} {:s} {:s}\n'.format(
                             optimize, pkl, opt_problem, optimizer_setting[optimizer], outdir, qval_ks_epsilon_iter, design_mass, design_freq, design_stress)
 
                     elif opt_problem == 'stress_min_mass_constr':
+                        design_stress = '--design_stress 1.0 --stress_as_fraction'
                         line = '{:s} pkls/{:s} {:s} {:s} --outdir {:s} {:s} {:s} {:s}\n'.format(
                             optimize, pkl, opt_problem, optimizer_setting[optimizer], outdir, qval_ks_epsilon_iter, design_mass, design_stress)
 
                     elif opt_problem == 'mass_min_stress_constr':
+                        design_stress = '--design_stress 1.1 --stress_as_fraction'
                         line = '{:s} pkls/{:s} {:s} {:s} --outdir {:s} {:s} {:s}\n'.format(
                             optimize, pkl, opt_problem, optimizer_setting[optimizer], outdir, qval_ks_epsilon_iter, design_stress)
 
