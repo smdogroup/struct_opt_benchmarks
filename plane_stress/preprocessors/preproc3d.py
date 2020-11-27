@@ -298,7 +298,7 @@ if __name__ == '__main__':
     p.add_argument('meshtype', type=str,
         choices=['structured', 'unstructured'])
     p.add_argument('--loaded_thickness', type=float, default=0.5)
-    p.add_argument('--nr0', type=int, default=6,
+    p.add_argument('--nr0', type=int, default=10,
         help='nr0 controls filter radius, r0 = height / nr0')
     p.add_argument('--outdir', type=str, default=None,
         help='directory for pkl output')

@@ -160,7 +160,8 @@ def plot_3dmesh(pkl_dict, savefig=False, paperstyle=False):
         if paperstyle:
             name = prob_name + '.pdf'
         else:
-            name = prob_name + '.png'
+            name = prob_name + '-nload-{:d}-maxf-{:.1f}.png'.format(
+                    np.count_nonzero(force), np.max(np.abs(force)))
         plt.savefig(name)
         plt.close()
     else:
