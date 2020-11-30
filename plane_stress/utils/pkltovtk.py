@@ -70,7 +70,18 @@ if __name__ == '__main__':
     args = p.parse_args()
 
     # Call function
-    pkltovtk(args.pklfile)
+    if args.pklfile == 'all':
+
+        allfiles = os.listdir()
+
+        counter = 0
+        for fname in allfiles:
+            if 'pkl' in fname:
+                counter += 1
+                print('converting {:d}/{:d} ...'.format(counter, len(allfiles)))
+                pkltovtk(fname)
+    else:
+        pkltovtk(args.pklfile)
 
 
 
