@@ -17,12 +17,12 @@ import argparse
 from paropt.paropt_driver import ParOptDriver
 import os
 import timeit
-import types
 
 def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
              in_ks_parameter, in_design_mass, in_design_freq, in_design_stress,
              in_stress_as_fraction, in_max_iters, in_ParOpt_use_adaptive_gamma_update,
-             in_ParOpt_use_filter, in_ParOpt_use_soc, in_info, in_outdir):
+             in_ParOpt_use_filter, in_ParOpt_use_soc, in_ParOpt_use_qn_correction,
+             in_info, in_outdir):
 
     # Load pickle file
     with open(in_picklename, 'rb') as pklfile:
@@ -104,6 +104,8 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
             optimizer_info += 'Filter'
         if in_ParOpt_use_soc:
             optimizer_info += 'Soc'
+        if in_ParOpt_use_qn_correction:
+            optimizer_info += 'Qn'
     prob_info = ''
 
     # we might use continuation strategy to update qval and restart
@@ -422,8 +424,19 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
         # Run optimization and time it
         prob.setup()
 
-        # This might work???
-        # prob.driver.paropt_problem.computeQuasiNewtonUpdateCorrection = analysis.compute_quasi_newton_correction
+        # Before starting to run the optimization, we may want to update
+        # the paropt problem instance if the quasi-Newton correction is specified
+        if in_ParOpt_use_qn_correction:
+
+            # This binds method compute_quasi_newton_correction() method to paropt problem object
+            # prob.driver.paropt_problem such that the quasi-Newton update is computed externally
+            # by the analysis library and get passed into ParOpt
+            prob.driver.use_qn_correction(analysis.compute_quasi_newton_correction)
+
+            # This technique is only used for compliance problems
+            if (in_opt_problem == 'stress_min_mass_constr' or
+                in_opt_problem == 'mass_min_stress_constr'):
+                print("\n[Warning] ParOpt_use_qn_correction is switched on for a non-compliance problem!")
 
         t_start = timeit.default_timer()
         prob.run_driver()
@@ -556,6 +569,7 @@ if __name__ == '__main__':
     p.add_argument('--ParOpt_use_adaptive_gamma_update', action='store_true')
     p.add_argument('--ParOpt_use_filter', action='store_true')
     p.add_argument('--ParOpt_use_soc', action='store_true')
+    p.add_argument('--ParOpt_use_qn_correction', action='store_true')
     p.add_argument('--info', type=str, default=None)
     p.add_argument('--outdir', type=str, default=None)
     args = p.parse_args()
@@ -564,4 +578,5 @@ if __name__ == '__main__':
              args.qval, args.epsilon, args.ks_parameter, args.design_mass,
              args.design_freq, args.design_stress, args.stress_as_fraction,
              args.max_iter, args.ParOpt_use_adaptive_gamma_update,
-             args.ParOpt_use_filter, args.ParOpt_use_soc, args.info, args.outdir)
+             args.ParOpt_use_filter, args.ParOpt_use_soc, args.ParOpt_use_qn_correction,
+             args.info, args.outdir)

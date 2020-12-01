@@ -73,9 +73,6 @@ class SolidAnalysis(om.ExplicitComponent):
         self.Kvals = np.zeros(self.cols.shape)
         self.Mvals = np.zeros(self.cols.shape)
 
-        # Compute the mass (area) of the structure with a full density
-        rho = np.ones(self.nnodes)
-
         # Now, compute the filter weights and store them as a sparse
         # matrix
         F = sparse.lil_matrix((self.nnodes, self.nnodes))
@@ -176,11 +173,11 @@ class SolidAnalysis(om.ExplicitComponent):
 
         # Compute the filtered compliance. Note that 'dot' is scipy
         # matrix-vector multiplicataion
-        rho = self.F.dot(x)
+        self._rho = self.F.dot(x)
 
         # Compute the stiffness matrix
         solid_lib.computekmat(self.conn.T, self.dof.T, self.X.T,
-            self.qval, self.C.T, rho, self.rowp, self.cols, self.Kvals)
+            self.qval, self.C.T, self._rho, self.rowp, self.cols, self.Kvals)
 
         # Form the matrix
         Kmat = sparse.csr_matrix((self.Kvals, self.cols, self.rowp),
@@ -347,6 +344,34 @@ class SolidAnalysis(om.ExplicitComponent):
         dksdx /= self.design_stress
 
         return dksdx
+
+    def compute_quasi_newton_correction(self, s, y):
+        """
+        The exact Hessian of the compliance is composed of the difference
+        between two contributions:
+
+        H = P - N
+
+        Here P is a positive-definite term while N is positive semi-definite.
+        Since the true Hessian is a difference between the two, the quasi-Newton
+        Hessian update can be written as:
+
+        H*s = y = P*s - N*s
+
+        This often leads to damped update steps as the optimization converges.
+        Instead, we want to approximate just P, so  we modify y so that
+
+        ymod ~ P*s = (H + N)*s ~ y + N*s
+        """
+
+        # Extract the values of the step and apply the filter
+        svec = self.F.dot(s[:])
+
+        Ns = np.zeros(self.nnodes)
+        solid_lib.computekmat2ndderiv(self.conn.T, self.dof.T, self.X.T,
+                self.qval, self.C.T, self._rho, svec, self.u, self.u, Ns)
+
+        y[:] += (self.F.transpose()).dot(Ns)
 
 
     def compute(self, inputs, outputs):

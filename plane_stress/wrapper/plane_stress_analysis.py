@@ -68,9 +68,6 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         self.Kvals = np.zeros(self.cols.shape)
         self.Mvals = np.zeros(self.cols.shape)
 
-        # Compute the mass (area) of the structure with a full density
-        rho = np.ones(self.nnodes)
-
         # Now, compute the filter weights and store them as a sparse
         # matrix
         F = sparse.lil_matrix((self.nnodes, self.nnodes))
@@ -208,11 +205,11 @@ class PlaneStressAnalysis(om.ExplicitComponent):
 
         # Compute the filtered compliance. Note that 'dot' is scipy
         # matrix-vector multiplicataion
-        self.rho = self.F.dot(x)
+        self._rho = self.F.dot(x)
 
         # Compute the stiffness matrix
         plane_lib.computekmat(self.conn.T, self.dof.T, self.X.T,
-            self.qval, self.C.T, self.rho, self.rowp, self.cols, self.Kvals)
+            self.qval, self.C.T, self._rho, self.rowp, self.cols, self.Kvals)
 
         # Form the matrix
         Kmat = sparse.csr_matrix((self.Kvals, self.cols, self.rowp),
@@ -243,14 +240,14 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         """
 
         # Compute the filtered variables
-        self.rho = self.F.dot(x)
+        self._rho = self.F.dot(x)
 
         # First compute the derivative with respect to the filtered
         # variables
         dKdrho = np.zeros(x.shape)
 
         plane_lib.computekmatderiv(self.conn.T, self.dof.T, self.X.T,
-            self.qval, self.C.T, self.rho, self.u, self.u, dKdrho)
+            self.qval, self.C.T, self._rho, self.u, self.u, dKdrho)
 
         # Now evaluate the effect of the filter
         dcdx = -(self.F.transpose()).dot(dKdrho)
@@ -376,7 +373,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
 
         # design_freq must be given
         if self.design_freq is None:
-            raise ValueError("\design_freq must be specified to call this function!\n")
+            raise ValueError("\ndesign_freq must be specified to call this function!\n")
 
         # Apply the filter to obtain the filtered values
         rho = self.F.dot(x)
@@ -415,7 +412,7 @@ class PlaneStressAnalysis(om.ExplicitComponent):
 
         # design_freq must be given
         if self.design_freq is None:
-            raise ValueError("\design_freq must be specified to call this function!\n")
+            raise ValueError("\ndesign_freq must be specified to call this function!\n")
 
         # Apply the filter to obtain the filtered values
         rho = self.F.dot(x)
@@ -490,8 +487,9 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         # Extract the values of the step and apply the filter
         svec = self.F.dot(s[:])
 
-        Ns = plane_lib.computekmat2ndderiv(self.conn.T, self.dof.T, self.X.T,
-                self.qval, self.C.T, self.rho, svec, self.u, self.u)
+        Ns = np.zeros(self.nnodes)
+        plane_lib.computekmat2ndderiv(self.conn.T, self.dof.T, self.X.T,
+                self.qval, self.C.T, self._rho, svec, self.u, self.u, Ns)
 
         y[:] += (self.F.transpose()).dot(Ns)
 
