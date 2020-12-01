@@ -208,11 +208,11 @@ class PlaneStressAnalysis(om.ExplicitComponent):
 
         # Compute the filtered compliance. Note that 'dot' is scipy
         # matrix-vector multiplicataion
-        rho = self.F.dot(x)
+        self.rho = self.F.dot(x)
 
         # Compute the stiffness matrix
         plane_lib.computekmat(self.conn.T, self.dof.T, self.X.T,
-            self.qval, self.C.T, rho, self.rowp, self.cols, self.Kvals)
+            self.qval, self.C.T, self.rho, self.rowp, self.cols, self.Kvals)
 
         # Form the matrix
         Kmat = sparse.csr_matrix((self.Kvals, self.cols, self.rowp),
@@ -243,14 +243,14 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         """
 
         # Compute the filtered variables
-        rho = self.F.dot(x)
+        self.rho = self.F.dot(x)
 
         # First compute the derivative with respect to the filtered
         # variables
         dKdrho = np.zeros(x.shape)
 
         plane_lib.computekmatderiv(self.conn.T, self.dof.T, self.X.T,
-            self.qval, self.C.T, rho, self.u, self.u, dKdrho)
+            self.qval, self.C.T, self.rho, self.u, self.u, dKdrho)
 
         # Now evaluate the effect of the filter
         dcdx = -(self.F.transpose()).dot(dKdrho)
@@ -467,6 +467,33 @@ class PlaneStressAnalysis(om.ExplicitComponent):
         base_freq = frequencies[0]
 
         return base_freq
+
+    def compute_quasi_newton_correction(self, s, y):
+        """
+        The exact Hessian of the compliance is composed of the difference
+        between two contributions:
+
+        H = P - N
+
+        Here P is a positive-definite term while N is positive semi-definite.
+        Since the true Hessian is a difference between the two, the quasi-Newton
+        Hessian update can be written as:
+
+        H*s = y = P*s - N*s
+
+        This often leads to damped update steps as the optimization converges.
+        Instead, we want to approximate just P, so  we modify y so that
+
+        ymod ~ P*s = (H + N)*s ~ y + N*s
+        """
+
+        # Extract the values of the step and apply the filter
+        svec = self.F.dot(s[:])
+
+        Ns = plane_lib.computekmat2ndderiv(self.conn.T, self.dof.T, self.X.T,
+                self.qval, self.C.T, self.rho, svec, self.u, self.u)
+
+        y[:] += (self.F.transpose()).dot(Ns)
 
     def compute(self, inputs, outputs):
         """

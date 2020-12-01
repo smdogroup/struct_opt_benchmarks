@@ -17,6 +17,7 @@ import argparse
 from paropt.paropt_driver import ParOptDriver
 import os
 import timeit
+import types
 
 def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
              in_ks_parameter, in_design_mass, in_design_freq, in_design_stress,
@@ -420,6 +421,9 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
 
         # Run optimization and time it
         prob.setup()
+
+        # This might work???
+        # prob.driver.paropt_problem.computeQuasiNewtonUpdateCorrection = analysis.compute_quasi_newton_correction
 
         t_start = timeit.default_timer()
         prob.run_driver()
