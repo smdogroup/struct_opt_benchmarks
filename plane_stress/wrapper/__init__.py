@@ -1,2 +1,0 @@
-from plane_stress.wrapper.plane_stress_analysis import PlaneStressAnalysis
-from plane_stress.wrapper.solid_analysis import SolidAnalysis

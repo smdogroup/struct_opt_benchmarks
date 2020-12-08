@@ -123,7 +123,7 @@ def preproc(n, AR, prob, meshtype, ratio1, ratio2,
     # We use tmr to generate unstructured mesh
     if meshtype == 'unstructured':
 
-        from plane_stress.preprocessors.unstructured_utils import create_mesh
+        from py_struct_opt_benchmarks.preprocessors.unstructured_utils import create_mesh
 
         nelems, nnodes, ndof, conn, X, dof, force = create_mesh(
             n, AR, prob, ratio1, ratio2,
@@ -293,7 +293,7 @@ def preproc(n, AR, prob, meshtype, ratio1, ratio2,
 
     # Save mesh plot
     if plot_mesh:
-        from plane_stress.utils import plot_mesh
+        from py_struct_opt_benchmarks.utils import plot_mesh
         plot_mesh(prob_pkl, savefig=True, outdir=outdir)
 
     return

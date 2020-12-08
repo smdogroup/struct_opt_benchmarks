@@ -35,7 +35,7 @@ main-folder
 import os
 import re
 import argparse
-import plane_stress
+import py_struct_opt_benchmarks
 
 # set up parser
 p = argparse.ArgumentParser()
@@ -64,13 +64,13 @@ if args.optimizer is None:
 # Baseline frequencies
 # Note that these are frequencies of final designs for mass constrained compliance
 # minimization problems using SNOPT, mass < 0.4, n = 64, qval = 8.0
-base_freqs = plane_stress.utils.base_freqs
+base_freqs = py_struct_opt_benchmarks.utils.base_freqs
 
 # get all pkl file names
 pkls = os.listdir('pkls')
 
 # Optimization script
-optimize = '~/git/struct_opt_benchmarks/plane_stress/optproblems/optimize.py'
+optimize = '~/git/struct_opt_benchmarks/py_struct_opt_benchmarks/optproblems/optimize.py'
 
 # Set some problem parameters to be constant
 freq_ratio = 1.2

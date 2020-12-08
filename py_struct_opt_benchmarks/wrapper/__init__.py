@@ -1,0 +1,2 @@
+from py_struct_opt_benchmarks.wrapper.plane_stress_analysis import PlaneStressAnalysis
+from py_struct_opt_benchmarks.wrapper.solid_analysis import SolidAnalysis

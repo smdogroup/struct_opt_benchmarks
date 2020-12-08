@@ -5,7 +5,7 @@ This script can be used to generate a batch of pkl files
 """
 
 import argparse
-from plane_stress.preprocessors import preproc
+from py_struct_opt_benchmarks.preprocessors import preproc
 
 def generate_pkls(ns, ARs, plot_mesh):
 

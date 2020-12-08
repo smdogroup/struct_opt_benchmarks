@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from plane_stress.wrapper import PlaneStressAnalysis
+from py_struct_opt_benchmarks.wrapper import PlaneStressAnalysis
 import matplotlib.pyplot as plt
 import matplotlib.tri as tri
 import numpy as np

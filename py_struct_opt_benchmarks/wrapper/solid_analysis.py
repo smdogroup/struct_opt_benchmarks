@@ -1,7 +1,7 @@
 import numpy as np
 import openmdao.api as om
 import matplotlib.pylab as plt
-from plane_stress import solid_lib
+from py_struct_opt_benchmarks import solid_lib
 from scipy import sparse
 from scipy.sparse import linalg
 from scipy.spatial import KDTree
@@ -9,7 +9,7 @@ import matplotlib.pylab as plt
 import matplotlib.tri as tri
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from pprint import pprint
-from plane_stress.utils import plot_3dmesh
+from py_struct_opt_benchmarks.utils import plot_3dmesh
 import pyamg
 import timeit
 

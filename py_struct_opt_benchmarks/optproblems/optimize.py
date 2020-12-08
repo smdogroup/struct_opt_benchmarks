@@ -43,10 +43,10 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
     if conn.shape[1] == 8:
         prob_dimension = '3D'
         print("\nWe have a 3D problem, no topology plot will be generated!")
-        from plane_stress.wrapper import SolidAnalysis as Analysis
+        from py_struct_opt_benchmarks.wrapper import SolidAnalysis as Analysis
     else:
         prob_dimension = '2D'
-        from plane_stress.wrapper import PlaneStressAnalysis as Analysis
+        from py_struct_opt_benchmarks.wrapper import PlaneStressAnalysis as Analysis
 
     # Check inputs
     opt_choices_2d = [
@@ -491,9 +491,9 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
 
         if in_optimizer == 'IPOPT':
             try:
-                from plane_stress.utils import ipopt_plot
+                from py_struct_opt_benchmarks.utils import ipopt_plot
             except:
-                print("\n[Warning] cannot import ipopt_plot from plane_stress.utils,",
+                print("\n[Warning] cannot import ipopt_plot from py_struct_opt_benchmarks.utils,",
                     "no convergence history plot generated!\n")
             else:
                 out_name = outputname + '.out'
@@ -501,9 +501,9 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
 
         if in_optimizer == 'SNOPT':
             try:
-                from plane_stress.utils import snopt_plot
+                from py_struct_opt_benchmarks.utils import snopt_plot
             except:
-                print("\n[Warning] cannot import snopt_plot from plane_stress.utils,",
+                print("\n[Warning] cannot import snopt_plot from py_struct_opt_benchmarks.utils,",
                     "no convergence history plot generated!\n")
             else:
                 out_name = outputname + '.out'

@@ -4,7 +4,7 @@ import numpy as np
 import pickle
 import argparse
 import os
-from plane_stress.preprocessors import create_3d_unstruct_mesh
+from py_struct_opt_benchmarks.preprocessors import create_3d_unstruct_mesh
 
 def preproc3d(n, AR, prob, ratio1, ratio2, hole_r, meshtype, nr0,
               outdir, plot_mesh, forced_portion, force_magnitude,
@@ -279,7 +279,7 @@ def preproc3d(n, AR, prob, ratio1, ratio2, hole_r, meshtype, nr0,
 
     # Save mesh plot
     if plot_mesh:
-        from plane_stress.utils import plot_3dmesh
+        from py_struct_opt_benchmarks.utils import plot_3dmesh
         plot_3dmesh(prob_pkl, savefig=True, paperstyle=False)
 
     return
