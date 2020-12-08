@@ -40,6 +40,7 @@ import plane_stress
 # set up parser
 p = argparse.ArgumentParser()
 p.add_argument('npart', type=int, help='number of partitions')
+p.add_argument('jobname', type=str, help='displayed name in pace scheduler')
 p.add_argument('--opt_problem', nargs='*', type=str, default=None, choices=[
     'comp_min_mass_constr', 'comp_min_massfreq_constr',
     'comp_min_massstress_constr', 'comp_min_massfreqstress_constr',
@@ -47,7 +48,8 @@ p.add_argument('--opt_problem', nargs='*', type=str, default=None, choices=[
 p.add_argument('--optimizer', nargs='*', type=str, default=None, choices=[
     'all', 'ParOpt', 'ParOptAdapt', 'ParOptFilter',
     'ParOptFilterSoc', 'ParOptQn', 'ParOptAdaptQn',
-    'ParOptFilterQn', 'ParOptFilterSocQn', 'SNOPT', 'IPOPT'])
+    'ParOptFilterQn', 'ParOptFilterSocQn', 'SNOPT', 'IPOPT',
+    'SNOPTtuned', 'SNOPTtunedscaled', 'IPOPTtuned'])
 p.add_argument('--walltime', type=int, default=5, help='walltime requested in hours')
 p.add_argument('--pmem', type=int, default=4, help='memory per core in GB')
 p.add_argument('--max_iter', type=int, default=1000)
@@ -84,7 +86,8 @@ opt_problems = args.opt_problem
 if 'all' in args.optimizer:
     optimizers = ['ParOpt', 'ParOptAdapt', 'ParOptFilter',
     'ParOptFilterSoc', 'ParOptQn', 'ParOptAdaptQn',
-    'ParOptFilterQn', 'ParOptFilterSocQn', 'SNOPT', 'IPOPT']
+    'ParOptFilterQn', 'ParOptFilterSocQn', 'SNOPT', 'IPOPT',
+    'SNOPTtuned', 'SNOPTtunedscaled', 'IPOPTtuned']
 else:
     optimizers = args.optimizer
 
@@ -99,7 +102,10 @@ optimizer_setting = {
     'ParOptFilterQn':'ParOpt --ParOpt_use_filter --ParOpt_use_qn_correction',
     'ParOptFilterSocQn':'ParOpt --ParOpt_use_filter --ParOpt_use_soc --ParOpt_use_qn_correction',
     'SNOPT':'SNOPT',
-    'IPOPT':'IPOPT'}
+    'IPOPT':'IPOPT',
+    'SNOPTtuned': 'SNOPT --SNOPT_tuned',
+    'SNOPTtunedscaled': 'SNOPT --SNOPT_tuned --SNOPT_use_scale',
+    'IPOPTtuned': 'IPOPT --IPOPT_tuned' }
 
 # Create the result folder
 try:
@@ -246,7 +252,7 @@ if args.npart > 1:
         pbs_name = 'cases_part{:d}.pbs'.format(i+1)
 
         with open(pbs_name, 'w') as f:
-            f.write('#PBS -N part{:d}\n'.format(i+1))
+            f.write('#PBS -N {:s}-part{:d}\n'.format(args.jobname, i+1))
             f.write('#PBS -A GT-gkennedy9-CODA20\n')
             f.write('#PBS -l nodes=1:ppn=24\n')
             f.write('#PBS -l walltime={:d}:00:00\n'.format(args.walltime))
