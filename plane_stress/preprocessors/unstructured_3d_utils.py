@@ -27,13 +27,19 @@ def create_3d_unstruct_mesh(n, AR, prob, ratio1, ratio2, hole_r, forced_portion,
     parts = []
 
     if prob == 'lbracket':
-        # Create box 1
+        # Create base
         x0 = [0, 0, 0]
-        x1 = [Lx*ratio1, Ly, h]
+        x1 = [Lx*ratio1, Ly*ratio2, h]
+        B0 = ctx.makeSolidBody(egads.BOX, rdata=[x0, x1])
+        parts.append(ctx.makeTopology(egads.MODEL, children=[B0]))
+
+        # Create arm 1
+        x0 = [0, Ly*ratio2, 0]
+        x1 = [Lx*ratio1, Ly*(1-ratio2), h]
         B1 = ctx.makeSolidBody(egads.BOX, rdata=[x0, x1])
         parts.append(ctx.makeTopology(egads.MODEL, children=[B1]))
 
-        # Create box 2
+        # Create arm 2
         x0 = [Lx*ratio1, 0, 0]
         x1 = [Lx*(1-ratio1), Ly*ratio2, h]
         B2 = ctx.makeSolidBody(egads.BOX, rdata=[x0, x1])
