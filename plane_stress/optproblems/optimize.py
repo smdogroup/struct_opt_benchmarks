@@ -22,7 +22,7 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
              in_ks_parameter, in_design_mass, in_design_freq, in_design_stress,
              in_stress_as_fraction, in_max_iters, in_ParOpt_use_adaptive_gamma_update,
              in_ParOpt_use_filter, in_ParOpt_use_soc, in_ParOpt_use_qn_correction,
-             in_info, in_outdir):
+             in_SNOPT_tuned, in_SNOPT_use_scale, in_IPOPT_tuned, in_info, in_outdir):
 
     # Load pickle file
     with open(in_picklename, 'rb') as pklfile:
@@ -106,6 +106,17 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
             optimizer_info += 'Soc'
         if in_ParOpt_use_qn_correction:
             optimizer_info += 'Qn'
+
+    if in_optimizer == 'IPOPT':
+        if in_IPOPT_tuned:
+            optimizer_info += 'tuned'
+
+    if in_optimizer == 'SNOPT':
+        if in_SNOPT_tuned:
+            optimizer_info += 'tuned'
+        if in_SNOPT_use_scale:
+            optimizer_info += 'scaled'
+
     prob_info = ''
 
     # we might use continuation strategy to update qval and restart
@@ -409,6 +420,14 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
             prob.driver.opt_settings['dual_inf_tol'] = 1e-10
             prob.driver.opt_settings['output_file'] = outputname+'.out'
 
+            if in_IPOPT_tuned:
+                prob.driver.opt_settings['mu_strategy'] = 'adaptive'  # default: monotone
+                prob.driver.opt_settings['limited_memory_max_history'] = 25  # default: 6
+                prob.driver.opt_settings['nlp_scaling_method'] = 'none'  # default: 'gradient-based'
+                prob.driver.opt_settings['alpha_for_y'] = 'full'  # default: primal
+                prob.driver.opt_settings['recalc_y'] = 'yes'  # default: no
+
+
         elif in_optimizer == 'SNOPT':
             prob.driver = om.pyOptSparseDriver()
             prob.driver.options['optimizer'] = 'SNOPT'
@@ -420,6 +439,17 @@ def optimize(in_picklename, in_opt_problem, in_optimizer, in_qvals, in_epsilon,
             prob.driver.opt_settings['Print file'] = outputname+'_print.out'
             prob.driver.opt_settings['Major print level'] = 1
             prob.driver.opt_settings['Minor print level'] = 0
+
+            if in_SNOPT_tuned:
+                prob.driver.opt_settings['Scale option'] = 0  # default 2
+                prob.driver.opt_settings['Major step limit'] = 10.0  # default 2.0
+                prob.driver.opt_settings['Linesearch tolerance'] = 0.99999  # default 0.9
+                prob.driver.opt_settings['New superbasics limit'] = 10000  # default 99
+                prob.driver.opt_settings['Function precision'] = 1e-4  # default 3.7e-11
+
+            if in_SNOPT_use_scale:
+                prob.driver.opt_settings['Scale option'] = 2  # default 2
+
 
         # Run optimization and time it
         prob.setup()
@@ -570,6 +600,9 @@ if __name__ == '__main__':
     p.add_argument('--ParOpt_use_filter', action='store_true')
     p.add_argument('--ParOpt_use_soc', action='store_true')
     p.add_argument('--ParOpt_use_qn_correction', action='store_true')
+    p.add_argument('--SNOPT_tuned', action='store_true')
+    p.add_argument('--SNOPT_use_scale', action='store_true')
+    p.add_argument('--IPOPT_tuned', action='store_true')
     p.add_argument('--info', type=str, default=None)
     p.add_argument('--outdir', type=str, default=None)
     args = p.parse_args()
@@ -579,4 +612,4 @@ if __name__ == '__main__':
              args.design_freq, args.design_stress, args.stress_as_fraction,
              args.max_iter, args.ParOpt_use_adaptive_gamma_update,
              args.ParOpt_use_filter, args.ParOpt_use_soc, args.ParOpt_use_qn_correction,
-             args.info, args.outdir)
+             args.SNOPT_tuned, args.SNOPT_use_scale, args.IPOPT_tuned, args.info, args.outdir)

@@ -17,7 +17,7 @@ axes.spines.bottom : True
 axes.spines.top    : False
 axes.spines.right  : False
 axes.grid          : False
-axes.prop_cycle    : cycler('color', ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan'])
+axes.prop_cycle    : cycler('color', ['tab:blue', 'tab:orange', 'tab:green', 'tab:red', 'tab:purple', 'tab:brown', 'tab:pink', 'tab:gray', 'tab:olive', 'tab:cyan', 'black', 'yellow', 'gray'])
 
 ## ***************************************************************************
 ## * TICKS                                                                   *

@@ -46,8 +46,10 @@ p.add_argument('--opt_problem', nargs='*', type=str, default=None, choices=[
     'stress_min_mass_constr', 'mass_min_stress_constr'])
 p.add_argument('--optimizer', nargs='*', type=str, default=None, choices=[
     'all', 'ParOpt', 'ParOptAdapt', 'ParOptFilter',
-    'ParOptFilterSoc', 'SNOPT', 'IPOPT'])
+    'ParOptFilterSoc', 'ParOptQn', 'ParOptAdaptQn',
+    'ParOptFilterQn', 'ParOptFilterSocQn', 'SNOPT', 'IPOPT'])
 p.add_argument('--walltime', type=int, default=5, help='walltime requested in hours')
+p.add_argument('--pmem', type=int, default=4, help='memory per core in GB')
 p.add_argument('--max_iter', type=int, default=1000)
 args = p.parse_args()
 
@@ -81,7 +83,8 @@ new_cases = 0
 opt_problems = args.opt_problem
 if 'all' in args.optimizer:
     optimizers = ['ParOpt', 'ParOptAdapt', 'ParOptFilter',
-        'ParOptFilterSoc', 'SNOPT', 'IPOPT']
+    'ParOptFilterSoc', 'ParOptQn', 'ParOptAdaptQn',
+    'ParOptFilterQn', 'ParOptFilterSocQn', 'SNOPT', 'IPOPT']
 else:
     optimizers = args.optimizer
 
@@ -91,6 +94,10 @@ optimizer_setting = {
     'ParOptAdapt':'ParOpt --ParOpt_use_adaptive_gamma_update',
     'ParOptFilter':'ParOpt --ParOpt_use_filter',
     'ParOptFilterSoc':'ParOpt --ParOpt_use_filter --ParOpt_use_soc',
+    'ParOptQn':'ParOpt --ParOpt_use_qn_correction',
+    'ParOptAdaptQn':'ParOpt --ParOpt_use_adaptive_gamma_update --ParOpt_use_qn_correction',
+    'ParOptFilterQn':'ParOpt --ParOpt_use_filter --ParOpt_use_qn_correction',
+    'ParOptFilterSocQn':'ParOpt --ParOpt_use_filter --ParOpt_use_soc --ParOpt_use_qn_correction',
     'SNOPT':'SNOPT',
     'IPOPT':'IPOPT'}
 
@@ -134,7 +141,7 @@ with open('cases.sh', 'w') as f:
                 for current_file in current_files:
                     if ('.pkl' in current_file and
                         opt_problem in current_file and
-                        optimizer in current_file and
+                        '-'+optimizer+'-' in current_file and
                         '-'+os.path.splitext(pkl)[0]+'-q' in current_file):
                         caseExists = True
                         existing_cases += 1
@@ -175,7 +182,8 @@ with open('cases.sh', 'w') as f:
 
                     elif opt_problem == 'comp_min_massstress_constr':
                         design_mass = '--design_mass 0.6'
-                        design_stress = '--design_stress 1.5 --stress_as_fraction'
+                        # design_stress = '--design_stress 1.5 --stress_as_fraction'
+                        design_stress = '--design_stress 1.1 --stress_as_fraction'
                         line = '{:s} pkls/{:s} {:s} {:s} --outdir {:s} {:s} {:s} {:s}\n'.format(
                             optimize, pkl, opt_problem, optimizer_setting[optimizer], outdir, qval_ks_epsilon_iter, design_mass, design_stress)
 
@@ -242,7 +250,7 @@ if args.npart > 1:
             f.write('#PBS -A GT-gkennedy9-CODA20\n')
             f.write('#PBS -l nodes=1:ppn=24\n')
             f.write('#PBS -l walltime={:d}:00:00\n'.format(args.walltime))
-            f.write('#PBS -l pmem=4gb\n')
+            f.write('#PBS -l pmem={:d}gb\n'.format(args.pmem))
             f.write('#PBS -o part{:d}.out\n'.format(i+1))
             f.write('#PBS -j oe\n')
             f.write('#PBS -m abe\n')

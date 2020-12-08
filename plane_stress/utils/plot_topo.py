@@ -87,7 +87,8 @@ if __name__ == '__main__':
         'comp_min_massstress_constr', 'comp_min_massfreqstress_constr',
         'stress_min_mass_constr', 'mass_min_stress_constr'])
     p.add_argument('--optimizer', nargs='*', type=str, default=None, choices=[
-        'ParOpt', 'ParOptAdapt', 'ParOptFilter', 'ParOptFilterSoc', 'IPOPT', 'SNOPT'])
+        'ParOpt', 'ParOptAdapt', 'ParOptFilter', 'ParOptFilterSoc', 'IPOPT', 'SNOPT',
+        'ParOptQn', 'ParOptAdaptQn', 'ParOptFilterQn', 'ParOptFilterSoc', 'IPOPTtuned', 'SNOPTtuned', 'SNOPTtunedscaled'])
     p.add_argument('--n', nargs='*', type=int, default=None, choices=[48, 64, 80])
     p.add_argument('--AR', nargs='*', type=float, default=None, choices=[1.0, 2.0, 3.0])
     p.add_argument('--meshtype', nargs='*', type=str, default=None, choices=[
